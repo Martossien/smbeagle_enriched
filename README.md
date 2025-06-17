@@ -154,6 +154,7 @@ Do not enumerate ACLs (FASTER):
   --access-time                      Collect last access time for files
   --fileattributes                   Collect file system attributes
   --ownerfile                        Collect file owner (DOMAIN\\Username)
+  --fasthash                         Compute xxHash64 for files (first 64KB)
   -d, --domain                       (Default: ) Domain for connecting to SMB
   -u, --username                     Username for connecting to SMB - mandatory
                                      on linux
