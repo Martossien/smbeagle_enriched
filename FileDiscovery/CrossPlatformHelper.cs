@@ -117,5 +117,30 @@ namespace SMBeagle.FileDiscovery
                 return string.Empty;
             }
         }
+
+        public static string DetectFileSignature(ISMBFileStore fileStore, string filePath)
+        {
+            const int READ_SIZE = 32;
+            try
+            {
+                object handle;
+                NTStatus result = fileStore.CreateFile(out handle, out _, filePath, AccessMask.GENERIC_READ, SMBLibrary.FileAttributes.Normal, ShareAccess.Read, CreateDisposition.FILE_OPEN, CreateOptions.FILE_NON_DIRECTORY_FILE | CreateOptions.FILE_SYNCHRONOUS_IO_ALERT, null);
+                if (result != NTStatus.STATUS_SUCCESS)
+                    return string.Empty;
+                byte[] data;
+                NTStatus status = fileStore.ReadFile(out data, handle, 0, READ_SIZE);
+                fileStore.CloseFile(handle);
+                if (status != NTStatus.STATUS_SUCCESS && status != NTStatus.STATUS_END_OF_FILE)
+                    return string.Empty;
+                using MemoryStream ms = new MemoryStream(data, 0, data.Length);
+                var inspector = new FileSignatures.FileFormatInspector();
+                var format = inspector.DetermineFileFormat(ms);
+                return format == null ? "unknown" : format.Extension.TrimStart('.').ToLower();
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
     }
 }

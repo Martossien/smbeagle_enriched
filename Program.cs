@@ -341,6 +341,7 @@ namespace SMBeagle
                     , includeFileAttributes: opts.FileAttributes
                     , includeFileOwner: opts.OwnerFile
                     , includeFastHash: opts.FastHash
+                    , includeFileSignature: opts.FileSignature
                     );
 
             OutputHelper.WriteLine("7. Completing the writes to CSV or elasticsearch (or both)");
@@ -469,6 +470,9 @@ namespace SMBeagle
             [Option("fasthash", Required = false, HelpText = "Compute xxHash64 for files (first 64KB)")]
             public bool FastHash { get; set; }
 
+            [Option("file-signature", Required = false, HelpText = "Detect file type by magic bytes")]
+            public bool FileSignature { get; set; }
+
             [Usage(ApplicationAlias = "SMBeagle")]
             public static IEnumerable<Example> Examples
             {
@@ -486,6 +490,7 @@ namespace SMBeagle
                     yield return new Example("Collect file attributes metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", FileAttributes = true });
                     yield return new Example("Collect file owner metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", OwnerFile = true });
                     yield return new Example("Collect fast hash metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", FastHash = true });
+                    yield return new Example("Collect file signature metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", FileSignature = true });
                 }
             }
         }

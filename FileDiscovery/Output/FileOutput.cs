@@ -27,6 +27,7 @@ namespace SMBeagle.FileDiscovery.Output
         public string FileAttributes { get; set; }
         public string Owner { get; set; }
         public string FastHash { get; set; }
+        public string FileSignature { get; set; }
         public FileOutput(File file)
         {
             Name = file.Name.ToLower();
@@ -45,6 +46,7 @@ namespace SMBeagle.FileDiscovery.Output
             FileAttributes = file.FileAttributes;
             Owner = file.Owner;
             FastHash = file.FastHash;
+            FileSignature = file.FileSignature;
         }
     }
 }
