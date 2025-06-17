@@ -319,6 +319,7 @@ namespace SMBeagle.FileDiscovery
     }
 
     static Dictionary<string, string> _sidCache = new();
+    private const int MAX_SID_CACHE_SIZE = 10000;
 
     public static string GetFileOwner(string filePath)
     {
@@ -368,6 +369,11 @@ namespace SMBeagle.FileDiscovery
             else
             {
                 ownerResult = $"{domain}\\{name}";
+            }
+            // Prevent unbounded cache growth
+            if (_sidCache.Count >= MAX_SID_CACHE_SIZE)
+            {
+                _sidCache.Clear();
             }
             _sidCache[sidStr] = ownerResult;
         }

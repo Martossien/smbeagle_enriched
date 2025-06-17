@@ -40,28 +40,54 @@ namespace SMBeagle.FileDiscovery
         {
             get
             {
-                List<File> ret = new List<File>();
-                ret.AddRange(Files);
-                foreach (Directory dir in ChildDirectories)
-                {
-                    ret.AddRange(dir.RecursiveFiles);
-                }
-                return ret;
+                return GetRecursiveFiles(new HashSet<string>());
             }
+        }
+
+        private List<File> GetRecursiveFiles(HashSet<string> visitedPaths)
+        {
+            List<File> ret = new List<File>();
+            
+            // Prevent circular references
+            string currentPath = UNCPath?.ToLower() ?? Path?.ToLower() ?? "";
+            if (visitedPaths.Contains(currentPath))
+                return ret;
+                
+            visitedPaths.Add(currentPath);
+            
+            ret.AddRange(Files);
+            foreach (Directory dir in ChildDirectories)
+            {
+                ret.AddRange(dir.GetRecursiveFiles(visitedPaths));
+            }
+            return ret;
         }
 
         public List<Directory> RecursiveChildDirectories
         {
             get
             {
-                List<Directory> ret = new List<Directory>();
-                ret.AddRange(ChildDirectories);
-                foreach (Directory dir in ChildDirectories)
-                {
-                    ret.AddRange(dir.RecursiveChildDirectories);
-                }
-                return ret;
+                return GetRecursiveChildDirectories(new HashSet<string>());
             }
+        }
+
+        private List<Directory> GetRecursiveChildDirectories(HashSet<string> visitedPaths)
+        {
+            List<Directory> ret = new List<Directory>();
+            
+            // Prevent circular references
+            string currentPath = UNCPath?.ToLower() ?? Path?.ToLower() ?? "";
+            if (visitedPaths.Contains(currentPath))
+                return ret;
+                
+            visitedPaths.Add(currentPath);
+            
+            ret.AddRange(ChildDirectories);
+            foreach (Directory dir in ChildDirectories)
+            {
+                ret.AddRange(dir.GetRecursiveChildDirectories(visitedPaths));
+            }
+            return ret;
         }
 
         public List<File> Files { get; private set; } = new List<File>();
