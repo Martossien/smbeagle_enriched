@@ -340,6 +340,7 @@ namespace SMBeagle
                     , includeAccessTime: opts.AccessTime
                     , includeFileAttributes: opts.FileAttributes
                     , includeFileOwner: opts.OwnerFile
+                    , includeFastHash: opts.FastHash
                     );
 
             OutputHelper.WriteLine("7. Completing the writes to CSV or elasticsearch (or both)");
@@ -465,6 +466,9 @@ namespace SMBeagle
             [Option("ownerfile", Required = false, HelpText = "Collect file owner (DOMAIN\\Username)")]
             public bool OwnerFile { get; set; }
 
+            [Option("fasthash", Required = false, HelpText = "Compute xxHash64 for files (first 64KB)")]
+            public bool FastHash { get; set; }
+
             [Usage(ApplicationAlias = "SMBeagle")]
             public static IEnumerable<Example> Examples
             {
@@ -481,6 +485,7 @@ namespace SMBeagle
                     yield return new Example("Collect file access time metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", AccessTime = true });
                     yield return new Example("Collect file attributes metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", FileAttributes = true });
                     yield return new Example("Collect file owner metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", OwnerFile = true });
+                    yield return new Example("Collect fast hash metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", FastHash = true });
                 }
             }
         }

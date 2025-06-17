@@ -2,6 +2,7 @@
 using SMBLibrary;
 using System;
 using System.IO;
+using System.IO.Hashing;
 
 namespace SMBeagle.FileDiscovery
 {
@@ -91,8 +92,30 @@ namespace SMBeagle.FileDiscovery
 				status = fileStore.CloseFile(handle);
 			}
 			// Disconnect from the SMB file store
-			status = fileStore.Disconnect();
-		}
-	}
+                        status = fileStore.Disconnect();
+                }
 
+        public static string ComputeFastHash(ISMBFileStore fileStore, string filePath)
+        {
+            const int READ_SIZE = 65536;
+            try
+            {
+                object handle;
+                NTStatus result = fileStore.CreateFile(out handle, out _, filePath, AccessMask.GENERIC_READ, SMBLibrary.FileAttributes.Normal, ShareAccess.Read, CreateDisposition.FILE_OPEN, CreateOptions.FILE_NON_DIRECTORY_FILE | CreateOptions.FILE_SYNCHRONOUS_IO_ALERT, null);
+                if (result != NTStatus.STATUS_SUCCESS)
+                    return string.Empty;
+                byte[] data;
+                NTStatus status = fileStore.ReadFile(out data, handle, 0, READ_SIZE);
+                fileStore.CloseFile(handle);
+                if (status != NTStatus.STATUS_SUCCESS && status != NTStatus.STATUS_END_OF_FILE)
+                    return string.Empty;
+                ulong hash = XxHash64.HashToUInt64(data.AsSpan(0, data.Length));
+                return hash.ToString("x16");
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+    }
 }

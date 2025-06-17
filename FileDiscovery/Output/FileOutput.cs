@@ -26,6 +26,7 @@ namespace SMBeagle.FileDiscovery.Output
         public DateTime AccessTime { get; set; }
         public string FileAttributes { get; set; }
         public string Owner { get; set; }
+        public string FastHash { get; set; }
         public FileOutput(File file)
         {
             Name = file.Name.ToLower();
@@ -43,6 +44,7 @@ namespace SMBeagle.FileDiscovery.Output
             AccessTime = file.AccessTime;
             FileAttributes = file.FileAttributes;
             Owner = file.Owner;
+            FastHash = file.FastHash;
         }
     }
 }
