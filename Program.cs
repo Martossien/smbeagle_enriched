@@ -338,6 +338,7 @@ namespace SMBeagle
                     crossPlatform: crossPlatform
                     , includeFileSize: opts.SizeFile
                     , includeAccessTime: opts.AccessTime
+                    , includeFileAttributes: opts.FileAttributes
                     );
 
             OutputHelper.WriteLine("7. Completing the writes to CSV or elasticsearch (or both)");
@@ -457,6 +458,9 @@ namespace SMBeagle
             [Option("access-time", Required = false, HelpText = "Collect last access time for files")]
             public bool AccessTime { get; set; }
 
+            [Option("fileattributes", Required = false, HelpText = "Collect file system attributes")]
+            public bool FileAttributes { get; set; }
+
             [Usage(ApplicationAlias = "SMBeagle")]
             public static IEnumerable<Example> Examples
             {
@@ -471,6 +475,7 @@ namespace SMBeagle
                     yield return new Example("Do not enumerate ACLs (FASTER)", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", DontEnumerateAcls = true });
                     yield return new Example("Collect file size metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", SizeFile = true });
                     yield return new Example("Collect file access time metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", AccessTime = true });
+                    yield return new Example("Collect file attributes metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", FileAttributes = true });
                 }
             }
         }

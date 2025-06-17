@@ -13,10 +13,11 @@ namespace SMBeagle.FileDiscovery
         public bool Deletable { get; set; }
         public long FileSize { get; set; }
         public DateTime AccessTime { get; set; }
+        public string FileAttributes { get; set; }
         public DateTime CreationTime { get; set; }
         public DateTime LastWriteTime { get; set; }
 
-        public File(string name, string fullName, string extension, DateTime creationTime, DateTime lastWriteTime, Directory parentDirectory, long fileSize = 0, DateTime accessTime = default)
+        public File(string name, string fullName, string extension, DateTime creationTime, DateTime lastWriteTime, Directory parentDirectory, long fileSize = 0, DateTime accessTime = default, string fileAttributes = "")
         {
             Name = name;
             Extension = extension;
@@ -26,6 +27,7 @@ namespace SMBeagle.FileDiscovery
             FullName = fullName;
             FileSize = fileSize;
             AccessTime = accessTime;
+            FileAttributes = fileAttributes;
         }
 
         public void SetPermissions(bool read, bool write, bool delete)
