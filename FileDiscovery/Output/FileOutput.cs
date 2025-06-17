@@ -22,6 +22,7 @@ namespace SMBeagle.FileDiscovery.Output
         public bool Deletable { get; set; }
         public Enums.DirectoryTypeEnum DirectoryType { get; set; }
         public string Base { get; set; }
+        public long FileSize { get; set; }
         public FileOutput(File file)
         {
             Name = file.Name.ToLower();
@@ -35,6 +36,7 @@ namespace SMBeagle.FileDiscovery.Output
             Deletable = file.Deletable;
             DirectoryType = file.ParentDirectory.Base.DirectoryType;
             Base = file.ParentDirectory.Share.uncPath;
+            FileSize = file.FileSize;
         }
     }
 }

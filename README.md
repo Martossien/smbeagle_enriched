@@ -150,6 +150,7 @@ Do not enumerate ACLs (FASTER):
                                      for SMB Hosts
   -A, --dont-enumerate-acls          (Default: false) Skip enumeration of file
                                      ACLs
+  --sizefile                         Collect file sizes in bytes
   -d, --domain                       (Default: ) Domain for connecting to SMB
   -u, --username                     Username for connecting to SMB - mandatory
                                      on linux

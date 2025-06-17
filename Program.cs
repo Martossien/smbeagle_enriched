@@ -336,6 +336,7 @@ namespace SMBeagle
                     enumerateAcls: !opts.DontEnumerateAcls,
                     verbose: opts.Verbose,
                     crossPlatform: crossPlatform
+                    , includeFileSize: opts.SizeFile
                     );
 
             OutputHelper.WriteLine("7. Completing the writes to CSV or elasticsearch (or both)");
@@ -449,6 +450,9 @@ namespace SMBeagle
             [Option('p', "password", Required = false, HelpText = "Password for connecting to SMB - mandatory on linux")]
             public string Password { get; set; }
 
+            [Option("sizefile", Required = false, HelpText = "Collect file sizes in bytes")]
+            public bool SizeFile { get; set; }
+
             [Usage(ApplicationAlias = "SMBeagle")]
             public static IEnumerable<Example> Examples
             {
@@ -461,6 +465,7 @@ namespace SMBeagle
                     yield return new Example("Output to elasticsearch and CSV", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", CsvFile = "out.csv" });
                     yield return new Example("Disable network discovery and provide manual networks", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", DisableNetworkDiscovery = true,  Networks = new List<String>() { "192.168.12.0./23", "192.168.15.0/24" } });
                     yield return new Example("Do not enumerate ACLs (FASTER)", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", DontEnumerateAcls = true });
+                    yield return new Example("Collect file size metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", SizeFile = true });
                 }
             }
         }
