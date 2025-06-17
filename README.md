@@ -1,182 +1,193 @@
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/punk-security/pwnspoof/graphs/commit-activity)
-[![Maintaner](https://img.shields.io/badge/maintainer-PunkSecurity-blue)](https://www.punksecurity.co.uk)
-[![Docker Pulls](https://img.shields.io/docker/pulls/punksecurity/smbeagle)](https://hub.docker.com/r/punksecurity/smbeagle)
-[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=punk-security_smbeagle&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=punk-security_smbeagle)
-[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=punk-security_smbeagle&metric=bugs)](https://sonarcloud.io/summary/new_code?id=punk-security_smbeagle)
-[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=punk-security_smbeagle&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=punk-security_smbeagle)
+# SMBeagle_enriched
 
-```
-    ____              __   _____                      _ __       
-   / __ \__  ______  / /__/ ___/___  _______  _______(_) /___  __
-  / /_/ / / / / __ \/ //_/\__ \/ _ \/ ___/ / / / ___/ / __/ / / /
- / ____/ /_/ / / / / ,<  ___/ /  __/ /__/ /_/ / /  / / /_/ /_/ / 
-/_/    \__,_/_/ /_/_/|_|/____/\___/\___/\__,_/_/  /_/\__/\__, /  
-                        PRESENTS                        /____/   
-```                                                       
-    
-# SMBeagle
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Martossien/smbeagle_enriched)
+[![.NET](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/9.0)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg)](https://github.com/Martossien/smbeagle_enriched/releases)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-SMBeagle is a cross-platform (SMB) fileshare auditing tool that hunts out all files it can see in the network 
-and reports if the file can be read and/or written.  All these findings are streamed out to either
-a CSV file or an elasticsearch host, or both!?  🚀
+SMBeagle_enriched is an enhanced fork of the excellent [SMBeagle](https://github.com/punk-security/smbeagle) project by [Punk Security](https://www.punksecurity.co.uk). This version extends the original tool with additional file metadata collection capabilities while preserving all existing functionality.
 
-When running on Windows, with no credentials provided, SMBeagle will make use of the win32 APIs for maximum speed, and integrated auth.
+## Acknowledgments
 
-When running on Linux, or when credentials are provided, we use the cross-platform file scanning through [SMBLibrary](https://github.com/TalAloni/SMBLibrary)
+This project builds upon the outstanding work of the SMBeagle team at Punk Security. All core SMB enumeration, permission checking, and output functionality comes from their original implementation. We extend our sincere gratitude for creating such a solid foundation for SMB file share auditing.
 
-## No more digital signing
+**Original SMBeagle**: https://github.com/punk-security/smbeagle
 
-SMBeagle up to v3 was digitally signed, but v4 adds more offensive features. Namely, it will now look for an retrieve juicy looking files. Great for pentests, but not something we want to digitally sign!
+## What's New
 
-If you want the original version, without the file grabbing features, use v3 which is digitally signed.
+SMBeagle_enriched adds six additional metadata collection options to the original tool:
 
-It has 2 awesome use cases:
+- `--sizefile` - Collect file sizes in bytes
+- `--access-time` - Collect last access timestamps  
+- `--fileattributes` - Collect Windows file system attributes
+- `--ownerfile` - Collect file ownership information
+- `--fasthash` - Generate fast xxHash64 checksums
+- `--file-signature` - Detect file types via magic byte analysis
 
-### Cast a spotlight on weak share permissions.
-Businesses of all sizes often have file shares with awful file permissions.  
+These additions are designed to support forensic analysis, data governance, and enhanced security auditing workflows.
 
-Large businesses have sprawling shares on file servers and its not uncommon to find sensitive data with misconfigured permissions. 
+## Platform Compatibility
 
-Small businesses often have a small NAS in the corner of the office with no restrictions at all!
+### Windows Support
+SMBeagle_enriched provides full functionality on Windows platforms:
 
-SMBeagle crawls these shares and lists out all the files it can read and write.  If it can read them, so can ransomware. 
-    
-### Lateral movement and privilege escalation
-SMBeagle can provide penetration testers with the less obvious routes to escalate privileges and move laterally.
+✅ **Fully Supported:**
+- All original SMBeagle features
+- Native Windows authentication (no credentials required)
+- All six new metadata options with Win32 API integration
+- File ownership resolution (`--ownerfile`) with domain integration
+- Windows-specific file attributes (`--fileattributes`)
 
-By outputting directly into elasticsearch, testers can quickly find readable scripts and writeable executables.
+### Linux Support  
+When running on Linux or using explicit credentials:
 
-Finding watering hole attacks and unprotected passwords never felt so easy! 🐱‍👤
+✅ **Supported:**
+- All original SMBeagle cross-platform features
+- SMBLibrary-based remote enumeration
+- File size, access time, and basic attributes collection
+- Hash calculation and file signature detection
 
-**To make it even easier, we've added the ```-g``` flag which will now fetch files back if they look interesting!**
+⚠️ **Limitations:**
+- `--ownerfile` returns `<NOT_SUPPORTED>` (Windows-only feature)
+- File attributes may have different representations
+- Requires explicit username/password authentication
 
-What looks interesting? Well by default we look for scripts and filenames with words like password in them.
+### Cross-Platform Technical Notes
 
-... You can provide your own regexes with the ```--file-pattern``` flag.
-
-## Kibana Dashboard
-Please see [Kibana readme](Kibana/README.md) for detailed instructions on installing and using the Kibana dashboards which
-provide management visuals and makes data pivoting all the easier.
+The tool automatically detects the runtime platform and selects appropriate implementation:
+- **Windows**: Uses native Win32 APIs for maximum performance and feature completeness
+- **Linux**: Uses SMBLibrary for network-based SMB operations
+- **Authentication**: Windows supports integrated auth; Linux requires explicit credentials
 
 ## Installation
 
-### Docker
-* ```docker pull punksecurity/smbeagle```
+### Requirements
+- .NET 9.0 Runtime or SDK
+- Windows 10+ or Linux (glibc 2.17+)
+- Network access to target SMB shares
 
-### Linux
-* Go to the latest release https://github.com/punk-security/smbeagle/releases/latest
-* Download the linux_amd64.zip or linux_arm64.zip
-* Unzip the download and run smbeagle from the terminal
+### Binary Installation
+Download the appropriate pre-compiled binary from [Releases](https://github.com/Martossien/smbeagle_enriched/releases):
 
-### Windows
-* Go to the latest release https://github.com/punk-security/smbeagle/releases/latest
-* Download the win_x64.zip (only 64bit is supported at the moment)
-* Unzip the download and run SMBeagle.exe from a command prompt or powershell terminal
+**Windows:**
+```cmd
+# Download and extract smbeagle_enriched_4.0.1.1_win_x64.zip
+SMBeagle.exe --help
+```
+
+**Linux:**
+```bash
+# Download and extract for your architecture
+wget https://github.com/Martossien/smbeagle_enriched/releases/download/v4.0.1.1/smbeagle_enriched_4.0.1.1_linux_amd64.zip
+unzip smbeagle_enriched_4.0.1.1_linux_amd64.zip
+chmod +x SMBeagle
+./SMBeagle --help
+```
+
+### Building from Source
+```bash
+git clone https://github.com/Martossien/smbeagle_enriched.git
+cd smbeagle_enriched
+dotnet restore
+dotnet build --configuration Release
+```
 
 ## Usage
 
-The only mandatory parameter is to set an output, which should be either an elasticsearch hosts IP address or a csv file.
+### Basic Examples
 
-A good starting point is to enable fast mode and output to csv, but this CSV could get huge depending on how many files it finds.
+**Standard SMB enumeration with enhanced metadata:**
+```bash
+# Windows (integrated auth)
+SMBeagle.exe -c results.csv --sizefile --access-time
 
-```
-./SMBeagle.exe -c out.csv -f
-```
-
-### Public IP scanning
-
-The scanning of discovered public hosts and networks is disabled by default as SMBeagle discovers networks from netstat which 
-includes all current connections such as web browser sessions etc.
-
-To scan a public network, declare it manually with something like `-n 1.0.0.1/32` or `-n 1.0.0.0/24`
-
-### Docker usage
-Punk security provides a linux docker image of SMBeagle.
-
-To get findings out, you will need to mount a folder into the container and tell SMBeagle to save its output to that mount (or use elasticsearch)
-
-A good starter example is:
-
-`docker run -v "$(pwd)/output:/tmp/output" punksecurity/smbeagle -c /tmp/output/results.csv -n 10.10.10.0/24`
-
-Note that network discovery is disabled when running in docker, so make sure you pass the ranges that
-you wish to scan with the `-n` command line switch, or hosts will the `-h` switch.
-
-### Full Usage
-
-```
-USAGE:
-Output to a CSV file:
-  SMBeagle -c out.csv
-Output to elasticsearch (Preferred):
-  SMBeagle -e 127.0.0.1
-Output to elasticsearch and CSV:
-  SMBeagle -c out.csv -e 127.0.0.1
-Disable network discovery and provide manual networks:
-  SMBeagle -D -e 127.0.0.1 -n 192.168.12.0./23 192.168.15.0/24
-Do not enumerate ACLs (FASTER):
-  SMBeagle -A -e 127.0.0.1
-
-  -c, --csv-file                     (Group: output) Output results to a CSV
-                                     file by providing filepath
-  -e, --elasticsearch-host           (Group: output) Output results to
-                                     elasticsearch by providing elasticsearch
-                                     hostname (default port is 9200 , but can be
-                                     overridden)
-  --elasticsearch-port               (Default: 9200) Define the elasticsearch
-                                     custom port if required
-  -f, --fast                         Enumerate only one files permissions per
-                                     directory
-  -l, --scan-local-shares            Scan the local shares on this machine
-  -D, --disable-network-discovery    Disable network discovery
-  -n, --network                      Manually add network to scan (multiple
-                                     accepted)
-  -N, --exclude-network              Exclude a network from scanning (multiple
-                                     accepted)
-  -h, --host                         Manually add host to scan
-  -H, --exclude-host                 Exclude a host from scanning
-  -q, --quiet                        Disable unneccessary output
-  -S, --exclude-share                Do not scan shares with this name (multiple
-                                     accepted)
-  -s, --share                        Only scan shares with this name (multiple
-                                     accepted)
-  --file-pattern                     Only fetch files matching these regexes
-                                     patterns
-  -g, --grab-files                   Grab files and store them locally
-  --loot                             (Default: loot) Path to store grabbed files
-  -E, --exclude-hidden-shares        Exclude shares ending in $
-  -v, --verbose                      Give more output
-  -m, --max-network-cidr-size        (Default: 20) Maximum network size to scan
-                                     for SMB Hosts
-  -A, --dont-enumerate-acls          (Default: false) Skip enumeration of file
-                                     ACLs
-  --sizefile                         Collect file sizes in bytes
-  --access-time                      Collect last access time for files
-  --fileattributes                   Collect file system attributes
-  --ownerfile                        Collect file owner (DOMAIN\\Username)
-  --fasthash                         Compute xxHash64 for files (first 64KB)
-  --file-signature                   Detect file type by magic bytes
-  -d, --domain                       (Default: ) Domain for connecting to SMB
-  -u, --username                     Username for connecting to SMB - mandatory
-                                     on linux
-  -p, --password                     Password for connecting to SMB - mandatory
-                                     on linux
-  --help                             Display this help screen.
-  --version                          Display version information.
-
+# Linux (explicit credentials)  
+./SMBeagle -c results.csv -u username -p password --sizefile --access-time
 ```
 
-## Architecture
+**Forensic analysis with all metadata:**
+```bash
+SMBeagle -c forensic_audit.csv --sizefile --access-time --fileattributes --ownerfile --fasthash --file-signature -v
+```
 
-SMBeagle does a lot of work, which is broken down into loosely coupled modules which hand off to each other.
-This keeps the design simple and allows us to extend each module easily.
+**Network discovery with metadata collection:**
+```bash
+SMBeagle -e elasticsearch:9200 -n 192.168.1.0/24 --fasthash --file-signature
+```
 
-In summary it:
+### New Command Line Options
 
-* Looks at your local machine for network connections and adapters
-* Takes all those private adaptors and connections and builds a list of private network candidates
-* Scans those networks for TCP port 445
-* Scans all detected SMB servers for accessible shares
-* Inventories all those shares for files and checks Read, Write, Delete permissions
+| Option | Description | Platform Support |
+|--------|-------------|-------------------|
+| `--sizefile` | Collect file sizes in bytes | Windows, Linux |
+| `--access-time` | Collect last access timestamps | Windows, Linux |
+| `--fileattributes` | Collect file system attributes | Windows (full), Linux (basic) |
+| `--ownerfile` | Collect file ownership (DOMAIN\\Username) | Windows only |
+| `--fasthash` | Generate xxHash64 checksums (first 64KB) | Windows, Linux |
+| `--file-signature` | Detect file types via magic bytes | Windows, Linux |
 
-![Schematic](Docs/schematic.png)
+### CSV Output Schema
+
+The enhanced version adds these columns to the standard SMBeagle CSV output:
+- `FileSize` - File size in bytes (0 if not collected)
+- `AccessTime` - Last access timestamp
+- `FileAttributes` - File system attributes string
+- `Owner` - File owner (DOMAIN\\Username or `<NOT_SUPPORTED>`)
+- `FastHash` - xxHash64 checksum (hex string)
+- `FileSignature` - Detected file type (e.g., "pdf", "docx", "unknown")
+
+## Technical Implementation
+
+### Performance Considerations
+- Metadata collection adds minimal overhead to existing enumeration
+- Hash calculation limited to first 64KB for performance
+- File signature detection reads only magic byte headers (32 bytes)
+- Owner resolution uses SID caching to reduce Windows API calls
+
+### Dependencies
+- **FileSignatures 5.2.0** - Magic byte file type detection
+- **System.IO.Hashing 9.0.0** - Native .NET 9 xxHash64 implementation  
+- **K4os.Hash.xxHash 1.0.8** - Alternative xxHash implementation
+- Original SMBeagle dependencies preserved
+
+### Architecture Notes
+The enhanced metadata collection follows a consistent pattern:
+1. CLI option parsing and propagation through `FileFinder`
+2. Conditional metadata collection in `Directory` enumeration methods
+3. Platform-specific implementation in `WindowsHelper`/`CrossPlatformHelper`
+4. Unified output through existing `FileOutput` schema
+
+## Current Status
+
+🚧 **Testing Phase**: This enhanced version is currently undergoing comprehensive testing across various Windows and Linux environments. While the core functionality is stable, users should validate behavior in their specific environments.
+
+## Docker Support
+
+Docker support is not included in this release. Users requiring containerized deployment should use the original SMBeagle project or deploy using the native binaries with appropriate volume mounts.
+
+## Limitations and Known Issues
+
+- **Cross-platform ownership**: `--ownerfile` only functions on Windows platforms
+- **Large file performance**: Hash calculation on very large files may impact enumeration speed
+- **Memory usage**: Extensive metadata collection on large shares may increase memory consumption
+- **File signature accuracy**: Detection relies on magic bytes and may not identify all file types correctly
+
+## Contributing
+
+This project maintains compatibility with the original SMBeagle architecture. When contributing:
+- Preserve backward compatibility with existing functionality
+- Follow the established pattern for metadata collection features
+- Test on both Windows and Linux platforms
+- Document platform-specific limitations clearly
+
+## Support and Issues
+
+For issues specific to the enhanced metadata features, please use this repository's issue tracker. For core SMBeagle functionality, consider reporting to the [original project](https://github.com/punk-security/smbeagle/issues) first.
+
+## License
+
+This project maintains the same Apache License 2.0 as the original SMBeagle project. See [LICENSE](LICENSE) for details.
+
+## Thanks
+
+Special thanks to the Punk Security team for creating SMBeagle and making it available to the security community. This enhanced version aims to extend their excellent work while maintaining the same quality and reliability standards.
