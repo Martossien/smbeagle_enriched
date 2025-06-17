@@ -58,7 +58,7 @@ namespace SMBeagle.FileDiscovery
                 ret.AddRange(ChildDirectories);
                 foreach (Directory dir in ChildDirectories)
                 {
-                    ret.AddRange(dir.ChildDirectories);
+                    ret.AddRange(dir.RecursiveChildDirectories);
                 }
                 return ret;
             }
@@ -71,7 +71,7 @@ namespace SMBeagle.FileDiscovery
             Share = share;
             Path = path;
         }
-        public void FindFilesWindows(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, bool verbose = false)
+        public void FindFilesWindows(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, bool verbose = false, HashSet<string> dedupSet = null)
         {
             try
             {
@@ -81,6 +81,9 @@ namespace SMBeagle.FileDiscovery
                 foreach (FileInfo file in files)
                 {
                     if (extensionsToIgnore.Contains(file.Extension.ToLower()))
+                        continue;
+                    string fileKey = $"{Share.uncPath}{file.FullName}".ToLower();
+                    if (dedupSet != null && !dedupSet.Add(fileKey))
                         continue;
                     string owner = string.Empty;
 #pragma warning disable CA1416
@@ -109,7 +112,7 @@ namespace SMBeagle.FileDiscovery
             }
             catch  {            }
         }
-        public void FindFilesCrossPlatform(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, bool verbose = false)
+        public void FindFilesCrossPlatform(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, bool verbose = false, HashSet<string> dedupSet = null)
         {
             try
             {
@@ -141,6 +144,9 @@ namespace SMBeagle.FileDiscovery
                                     else
                                         path = $"{Path}\\{d.FileName}";
                                     if (extensionsToIgnore.Contains(extension.ToLower()))
+                                        continue;
+                                    string fileKey = $"{Share.uncPath}{path}".ToLower();
+                                    if (dedupSet != null && !dedupSet.Add(fileKey))
                                         continue;
                                     string owner = includeFileOwner ? "<NOT_SUPPORTED>" : string.Empty;
                                     string fastHash = includeFastHash ? CrossPlatformHelper.ComputeFastHash(fileStore, path) : string.Empty;
@@ -245,12 +251,16 @@ namespace SMBeagle.FileDiscovery
             }
         }
 
-        public void FindFilesRecursively(bool crossPlatform, ref bool abort, List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, bool verbose = false)
+        public void FindFilesRecursively(bool crossPlatform, ref bool abort, List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, bool verbose = false, HashSet<string> dedupSet = null)
         {
+            if (verbose)
+            {
+                OutputHelper.WriteLine($"Processing directory: {UNCPath}", 3);
+            }
             if (crossPlatform)
-                FindFilesCrossPlatform(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, includeFileSignature, verbose);
+                FindFilesCrossPlatform(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, includeFileSignature, verbose, dedupSet);
             else
-                FindFilesWindows(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, includeFileSignature, verbose);
+                FindFilesWindows(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, includeFileSignature, verbose, dedupSet);
             // Iterate only direct children here. Using RecursiveChildDirectories
             // caused repeated traversal of the same subdirectories at every level,
             // dramatically impacting performance when verbose access-time logging
@@ -259,7 +269,7 @@ namespace SMBeagle.FileDiscovery
             {
                 if (abort)
                     return;
-                dir.FindFilesRecursively(crossPlatform, ref abort, extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, includeFileSignature, verbose);
+                dir.FindFilesRecursively(crossPlatform, ref abort, extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, includeFileSignature, verbose, dedupSet);
             }
         }
 
