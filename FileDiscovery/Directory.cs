@@ -70,7 +70,7 @@ namespace SMBeagle.FileDiscovery
             Share = share;
             Path = path;
         }
-        public void FindFilesWindows(List<string> extensionsToIgnore = null)
+        public void FindFilesWindows(List<string> extensionsToIgnore = null, bool includeFileSize = false)
         {
             try
             {
@@ -86,14 +86,15 @@ namespace SMBeagle.FileDiscovery
                             fullName: file.FullName,
                             extension: file.Extension,
                             creationTime: file.CreationTime,
-                            lastWriteTime: file.LastWriteTime
+                            lastWriteTime: file.LastWriteTime,
+                            fileSize: includeFileSize ? file.Length : 0
                         )
                     );
                 }
             }
             catch  {            }
         }
-        public void FindFilesCrossPlatform(List<string> extensionsToIgnore = null)
+        public void FindFilesCrossPlatform(List<string> extensionsToIgnore = null, bool includeFileSize = false)
         {
             try
             {
@@ -131,7 +132,8 @@ namespace SMBeagle.FileDiscovery
                                             fullName: path,
                                             extension: extension,
                                             creationTime: d.CreationTime,
-                                            lastWriteTime: d.LastWriteTime
+                                            lastWriteTime: d.LastWriteTime,
+                                            fileSize: includeFileSize ? (long)d.EndOfFile : 0
                                         )
                                     );
                                 }
@@ -218,17 +220,17 @@ namespace SMBeagle.FileDiscovery
             }
         }
 
-        public void FindFilesRecursively(bool crossPlatform, ref bool abort, List<string> extensionsToIgnore = null)
+        public void FindFilesRecursively(bool crossPlatform, ref bool abort, List<string> extensionsToIgnore = null, bool includeFileSize = false)
         {
             if (crossPlatform)
-                FindFilesCrossPlatform(extensionsToIgnore);
+                FindFilesCrossPlatform(extensionsToIgnore, includeFileSize);
             else
-                FindFilesWindows(extensionsToIgnore);
+                FindFilesWindows(extensionsToIgnore, includeFileSize);
             foreach (Directory dir in RecursiveChildDirectories)
             {
                 if (abort)
                     return;
-                dir.FindFilesRecursively(crossPlatform, ref abort, extensionsToIgnore);
+                dir.FindFilesRecursively(crossPlatform, ref abort, extensionsToIgnore, includeFileSize);
             }
         }
 
