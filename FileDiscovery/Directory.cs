@@ -71,7 +71,7 @@ namespace SMBeagle.FileDiscovery
             Share = share;
             Path = path;
         }
-        public void FindFilesWindows(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool verbose = false)
+        public void FindFilesWindows(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool verbose = false)
         {
             try
             {
@@ -91,14 +91,15 @@ namespace SMBeagle.FileDiscovery
                             creationTime: file.CreationTime,
                             lastWriteTime: file.LastWriteTime,
                             fileSize: includeFileSize ? file.Length : 0,
-                            accessTime: includeAccessTime ? file.LastAccessTime : default
+                            accessTime: includeAccessTime ? file.LastAccessTime : default,
+                            fileAttributes: includeFileAttributes ? file.Attributes.ToString() : ""
                         )
                     );
                 }
             }
             catch  {            }
         }
-        public void FindFilesCrossPlatform(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool verbose = false)
+        public void FindFilesCrossPlatform(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool verbose = false)
         {
             try
             {
@@ -140,7 +141,8 @@ namespace SMBeagle.FileDiscovery
                                             creationTime: d.CreationTime,
                                             lastWriteTime: d.LastWriteTime,
                                             fileSize: includeFileSize ? (long)d.EndOfFile : 0,
-                                            accessTime: includeAccessTime ? d.LastAccessTime : default
+                                            accessTime: includeAccessTime ? d.LastAccessTime : default,
+                                            fileAttributes: includeFileAttributes ? d.FileAttributes.ToString() : ""
                                         )
                                     );
                                 }
@@ -227,17 +229,17 @@ namespace SMBeagle.FileDiscovery
             }
         }
 
-        public void FindFilesRecursively(bool crossPlatform, ref bool abort, List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool verbose = false)
+        public void FindFilesRecursively(bool crossPlatform, ref bool abort, List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool verbose = false)
         {
             if (crossPlatform)
-                FindFilesCrossPlatform(extensionsToIgnore, includeFileSize, includeAccessTime, verbose);
+                FindFilesCrossPlatform(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, verbose);
             else
-                FindFilesWindows(extensionsToIgnore, includeFileSize, includeAccessTime, verbose);
+                FindFilesWindows(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, verbose);
             foreach (Directory dir in RecursiveChildDirectories)
             {
                 if (abort)
                     return;
-                dir.FindFilesRecursively(crossPlatform, ref abort, extensionsToIgnore, includeFileSize, includeAccessTime, verbose);
+                dir.FindFilesRecursively(crossPlatform, ref abort, extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, verbose);
             }
         }
 

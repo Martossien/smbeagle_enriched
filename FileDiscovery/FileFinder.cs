@@ -48,10 +48,12 @@ namespace SMBeagle.FileDiscovery
 
         bool _includeFileSize;
         bool _includeAccessTime;
-        public FileFinder(List<Share> shares, string outputDirectory, bool fetchFiles, List<String> filePatterns, bool getPermissionsForSingleFileInDir = true, bool enumerateAcls = true, bool quiet = false, bool verbose = false, bool crossPlatform = false, bool includeFileSize = false, bool includeAccessTime = false)
+        bool _includeFileAttributes;
+        public FileFinder(List<Share> shares, string outputDirectory, bool fetchFiles, List<String> filePatterns, bool getPermissionsForSingleFileInDir = true, bool enumerateAcls = true, bool quiet = false, bool verbose = false, bool crossPlatform = false, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false)
         {
             _includeFileSize = includeFileSize;
             _includeAccessTime = includeAccessTime;
+            _includeFileAttributes = includeFileAttributes;
             if (fetchFiles)
             {
                 try
@@ -131,7 +133,7 @@ namespace SMBeagle.FileDiscovery
                 abort = false;
                 OutputHelper.WriteLine($"\renumerating files in '{dir.UNCPath}' - CTRL-BREAK or CTRL-PAUSE to SKIP                                          ", 1, false);
                 // TODO: pass in the ignored extensions from the commandline
-                dir.FindFilesRecursively(crossPlatform: crossPlatform, ref abort, extensionsToIgnore: new List<string>() { ".dll",".manifest",".cat" }, includeFileSize: _includeFileSize, includeAccessTime: _includeAccessTime, verbose: verbose);
+                dir.FindFilesRecursively(crossPlatform: crossPlatform, ref abort, extensionsToIgnore: new List<string>() { ".dll",".manifest",".cat" }, includeFileSize: _includeFileSize, includeAccessTime: _includeAccessTime, includeFileAttributes: _includeFileAttributes, verbose: verbose);
                 if (verbose)
                     OutputHelper.WriteLine($"\rFound {dir.ChildDirectories.Count} child directories and {dir.RecursiveFiles.Count} files in '{dir.UNCPath}'",2);
                 

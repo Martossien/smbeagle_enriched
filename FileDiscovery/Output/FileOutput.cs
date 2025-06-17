@@ -24,6 +24,7 @@ namespace SMBeagle.FileDiscovery.Output
         public string Base { get; set; }
         public long FileSize { get; set; }
         public DateTime AccessTime { get; set; }
+        public string FileAttributes { get; set; }
         public FileOutput(File file)
         {
             Name = file.Name.ToLower();
@@ -39,6 +40,7 @@ namespace SMBeagle.FileDiscovery.Output
             Base = file.ParentDirectory.Share.uncPath;
             FileSize = file.FileSize;
             AccessTime = file.AccessTime;
+            FileAttributes = file.FileAttributes;
         }
     }
 }

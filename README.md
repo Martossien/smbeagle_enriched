@@ -152,6 +152,7 @@ Do not enumerate ACLs (FASTER):
                                      ACLs
   --sizefile                         Collect file sizes in bytes
   --access-time                      Collect last access time for files
+  --fileattributes                   Collect file system attributes
   -d, --domain                       (Default: ) Domain for connecting to SMB
   -u, --username                     Username for connecting to SMB - mandatory
                                      on linux
