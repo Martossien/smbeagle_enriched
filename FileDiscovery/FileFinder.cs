@@ -40,9 +40,22 @@ namespace SMBeagle.FileDiscovery
         {
             get
             {
-                return Directories
-                        .SelectMany(dir => dir.RecursiveFiles)
-                        .ToList();
+                HashSet<string> seenFiles = new HashSet<string>();
+                List<File> uniqueFiles = new List<File>();
+
+                foreach (Directory dir in Directories)
+                {
+                    foreach (File file in dir.RecursiveFiles)
+                    {
+                        string fileKey = $"{dir.Share.uncPath}{file.FullName}".ToLower();
+                        if (seenFiles.Add(fileKey))
+                        {
+                            uniqueFiles.Add(file);
+                        }
+                    }
+                }
+
+                return uniqueFiles;
             }
         }
 
@@ -139,7 +152,7 @@ namespace SMBeagle.FileDiscovery
                 abort = false;
                 OutputHelper.WriteLine($"\renumerating files in '{dir.UNCPath}' - CTRL-BREAK or CTRL-PAUSE to SKIP                                          ", 1, false);
                 // TODO: pass in the ignored extensions from the commandline
-                dir.FindFilesRecursively(crossPlatform: crossPlatform, ref abort, extensionsToIgnore: new List<string>() { ".dll",".manifest",".cat" }, includeFileSize: _includeFileSize, includeAccessTime: _includeAccessTime, includeFileAttributes: _includeFileAttributes, includeFileOwner: _includeFileOwner, includeFastHash: _includeFastHash, includeFileSignature: _includeFileSignature, verbose: verbose);
+                dir.FindFilesRecursively(crossPlatform: crossPlatform, ref abort, extensionsToIgnore: new List<string>() { ".dll",".manifest",".cat" }, includeFileSize: _includeFileSize, includeAccessTime: _includeAccessTime, includeFileAttributes: _includeFileAttributes, includeFileOwner: _includeFileOwner, includeFastHash: _includeFastHash, includeFileSignature: _includeFileSignature, verbose: verbose, dedupSet: FilesSentForOutput);
                 if (verbose)
                     OutputHelper.WriteLine($"\rFound {dir.ChildDirectories.Count} child directories and {dir.RecursiveFiles.Count} files in '{dir.UNCPath}'",2);
                 
@@ -196,18 +209,31 @@ namespace SMBeagle.FileDiscovery
 
         private void SplitLargeDirectories(int maxChildCount = 20)
         {
-            List<Directory> 
-                oversizedDirectories = _directories.Where(item => item.RecursiveChildDirectories.Count > maxChildCount).ToList();
+            HashSet<string> processedPaths = new HashSet<string>();
+            bool hasChanges = true;
 
-            while (oversizedDirectories.Count > 0)
+            while (hasChanges)
             {
-                foreach (Directory dir in oversizedDirectories)
-                {
-                    _directories.Remove(dir);
-                    _directories.AddRange(dir.ChildDirectories);
-                }
+                hasChanges = false;
+                List<Directory> currentDirectories = new List<Directory>(_directories);
 
-                oversizedDirectories = _directories.Where(item => item.RecursiveChildDirectories.Count > maxChildCount).ToList();
+                foreach (Directory dir in currentDirectories)
+                {
+                    if (dir.RecursiveChildDirectories.Count > maxChildCount)
+                    {
+                        _directories.Remove(dir);
+
+                        foreach (Directory childDir in dir.ChildDirectories)
+                        {
+                            string childPath = childDir.UNCPath.ToLower();
+                            if (processedPaths.Add(childPath))
+                            {
+                                _directories.Add(childDir);
+                                hasChanges = true;
+                            }
+                        }
+                    }
+                }
             }
         }
 

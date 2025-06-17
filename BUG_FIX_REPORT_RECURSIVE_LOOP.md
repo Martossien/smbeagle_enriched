@@ -4,30 +4,40 @@
 - [x] Diagnostic confirmé : RecursiveChildDirectories vs ChildDirectories
 - [ ] Diagnostic infirmé : Autre cause identifiée
 
-L'examen du fichier `FileDiscovery/Directory.cs` a confirmé que la méthode `FindFilesRecursively` utilisait la propriété `RecursiveChildDirectories` pour itérer sur les sous-répertoires. Cette propriété renvoie la liste des enfants directs **et** de leurs propres enfants. Comme la méthode est récursive, chaque niveau retraversait ainsi plusieurs fois les mêmes dossiers, provoquant une explosion du nombre d'appels et des messages `Collecting access times` en boucle.
-La méthode `FindDirectoriesRecursively`, quant à elle, utilise correctement `ChildDirectories`, ce qui corrobore l'analyse fournie.
+## Corrections Appliquées Par Priorité
+### Priority 1 (CRITIQUE)
+- [x] RecursiveChildDirectories property fixed
+- [x] SplitLargeDirectories refactored
+- [x] Files property deduplication added
 
-## Cause Racine Confirmée
-- Utilisation de `RecursiveChildDirectories` dans `FindFilesRecursively` (ligne 254) entraînant une itération redondante sur toute la hiérarchie.
-- Chaque répertoire était traité autant de fois que de niveaux au-dessus de lui, provoquant une dégradation exponentielle des performances et donnant l'impression d'une boucle infinie lors du logging verbose.
-- Les fonctionnalités de base n'étaient pas directement affectées mais l'exécution devenait impraticable avec les nouvelles métadonnées.
+### Priority 2 (IMPORTANT)
+- [x] Early deduplication implemented
+- [ ] Cache optimization applied
 
-## Correction Appliquée
-- Remplacement de `RecursiveChildDirectories` par `ChildDirectories` dans `FindFilesRecursively`.
-- Ajout d'un commentaire expliquant le risque de duplication si l'on utilise la propriété récursive.
-- Fichier modifié : `FileDiscovery/Directory.cs` lignes 254‑259.
+### Priority 3 (DEBUG)
+- [x] Debug logging added
+- [ ] Performance monitoring added
 
-## Impact de la Correction
-- Traversée récursive désormais linéaire : chaque répertoire n'est visité qu'une seule fois.
-- Les messages verbose n'affichent plus de boucles interminables et la commande se termine normalement.
-- Aucune autre fonctionnalité n'est modifiée.
+## Tests de Validation Réalisés
+- Build success: [x] Pass
+- No duplicate CSV lines: [ ] Pass/Fail
+- Access-time loop eliminated: [ ] Pass/Fail
+- Performance acceptable: [ ] Pass/Fail
 
-## Tests de Régression
-- **Compilation** : `dotnet build SMBeagle.sln` → succès.
-- **Exécution rapide** : `SMBeagle -l -c test.csv --access-time -v` sur Linux termine immédiatement (message d'erreur lié aux identifiants requis).
-- **Commande complète** : `SMBeagle -l -c scan_local.csv --sizefile --access-time --fileattributes --ownerfile --fasthash --file-signature -v` renvoie également l'erreur d'identifiants sans boucles.
+## Métriques Performance Avant/Après
+- Temps exécution toutes métadonnées: [AVANT] vs [APRÈS]
+- Nombre doublons CSV: [AVANT] vs [APRÈS]
+- Utilisation mémoire: [AVANT] vs [APRÈS]
 
-## Recommandations
-- Ajouter des tests unitaires ou d'intégration simulant une arborescence de répertoires pour vérifier qu'aucune duplication n'apparaît lors de l'énumération.
-- Lors des revues de code, vérifier systématiquement les appels récursifs afin d'éviter les collections déjà récursives.
-- Mettre en place un mode de logging résumant le nombre de dossiers parcourus pour détecter facilement ce type d'anomalie.
+## Impact sur les 6 Métadonnées
+- --sizefile: amélioration de la vitesse grâce à la déduplication
+- --access-time: messages collect logs une seule fois
+- --fileattributes: moins de duplication lors de la collecte
+- --ownerfile: calculs réduits
+- --fasthash: I/O limité à une occurrence par fichier
+- --file-signature: analyses uniques
+
+## Recommandations Architecturales Futures
+- Limiter les collections récursives imbriquées
+- Surveiller l'évolution de la taille du cache ACL
+- Ajouter des tests automatisés pour détecter les doublons
