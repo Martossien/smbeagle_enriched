@@ -1,4 +1,5 @@
 ﻿using SMBeagle.ShareDiscovery;
+using SMBeagle.Output;
 using SMBLibrary;
 using SMBLibrary.Client;
 using System;
@@ -70,11 +71,13 @@ namespace SMBeagle.FileDiscovery
             Share = share;
             Path = path;
         }
-        public void FindFilesWindows(List<string> extensionsToIgnore = null, bool includeFileSize = false)
+        public void FindFilesWindows(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool verbose = false)
         {
             try
             {
                 FileInfo[] files = new DirectoryInfo(UNCPath).GetFiles("*.*");
+                if (verbose && includeAccessTime)
+                    OutputHelper.WriteLine($"Collecting access times for {files.Length} files", 2);
                 foreach (FileInfo file in files)
                 {
                     if (extensionsToIgnore.Contains(file.Extension.ToLower()))
@@ -87,14 +90,15 @@ namespace SMBeagle.FileDiscovery
                             extension: file.Extension,
                             creationTime: file.CreationTime,
                             lastWriteTime: file.LastWriteTime,
-                            fileSize: includeFileSize ? file.Length : 0
+                            fileSize: includeFileSize ? file.Length : 0,
+                            accessTime: includeAccessTime ? file.LastAccessTime : default
                         )
                     );
                 }
             }
             catch  {            }
         }
-        public void FindFilesCrossPlatform(List<string> extensionsToIgnore = null, bool includeFileSize = false)
+        public void FindFilesCrossPlatform(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool verbose = false)
         {
             try
             {
@@ -110,6 +114,8 @@ namespace SMBeagle.FileDiscovery
                         List<QueryDirectoryFileInformation> fileList;
                         //TODO: can we filter on just files
                         fileStore.QueryDirectory(out fileList, directoryHandle, "*", FileInformationClass.FileDirectoryInformation);
+                        if (verbose && includeAccessTime)
+                            OutputHelper.WriteLine($"Collecting access times for {fileList.Count} files", 2);
                         foreach (QueryDirectoryFileInformation f in fileList)
                         {
                             if (f.FileInformationClass == FileInformationClass.FileDirectoryInformation)
@@ -133,7 +139,8 @@ namespace SMBeagle.FileDiscovery
                                             extension: extension,
                                             creationTime: d.CreationTime,
                                             lastWriteTime: d.LastWriteTime,
-                                            fileSize: includeFileSize ? (long)d.EndOfFile : 0
+                                            fileSize: includeFileSize ? (long)d.EndOfFile : 0,
+                                            accessTime: includeAccessTime ? d.LastAccessTime : default
                                         )
                                     );
                                 }
@@ -220,17 +227,17 @@ namespace SMBeagle.FileDiscovery
             }
         }
 
-        public void FindFilesRecursively(bool crossPlatform, ref bool abort, List<string> extensionsToIgnore = null, bool includeFileSize = false)
+        public void FindFilesRecursively(bool crossPlatform, ref bool abort, List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool verbose = false)
         {
             if (crossPlatform)
-                FindFilesCrossPlatform(extensionsToIgnore, includeFileSize);
+                FindFilesCrossPlatform(extensionsToIgnore, includeFileSize, includeAccessTime, verbose);
             else
-                FindFilesWindows(extensionsToIgnore, includeFileSize);
+                FindFilesWindows(extensionsToIgnore, includeFileSize, includeAccessTime, verbose);
             foreach (Directory dir in RecursiveChildDirectories)
             {
                 if (abort)
                     return;
-                dir.FindFilesRecursively(crossPlatform, ref abort, extensionsToIgnore, includeFileSize);
+                dir.FindFilesRecursively(crossPlatform, ref abort, extensionsToIgnore, includeFileSize, includeAccessTime, verbose);
             }
         }
 
