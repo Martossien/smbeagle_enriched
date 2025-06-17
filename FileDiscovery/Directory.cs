@@ -71,7 +71,7 @@ namespace SMBeagle.FileDiscovery
             Share = share;
             Path = path;
         }
-        public void FindFilesWindows(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool verbose = false)
+        public void FindFilesWindows(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, bool verbose = false)
         {
             try
             {
@@ -88,6 +88,7 @@ namespace SMBeagle.FileDiscovery
                         owner = WindowsHelper.GetFileOwner(file.FullName);
 #pragma warning restore CA1416
                     string fastHash = includeFastHash ? WindowsHelper.ComputeFastHash(file.FullName) : string.Empty;
+                    string fileSignature = includeFileSignature ? WindowsHelper.DetectFileSignature(file.FullName) : string.Empty;
                     Files.Add(
                         new File(
                             parentDirectory: this,
@@ -100,14 +101,15 @@ namespace SMBeagle.FileDiscovery
                             accessTime: includeAccessTime ? file.LastAccessTime : default,
                             fileAttributes: includeFileAttributes ? file.Attributes.ToString() : "",
                             owner: owner,
-                            fastHash: fastHash
+                            fastHash: fastHash,
+                            fileSignature: fileSignature
                         )
                     );
                 }
             }
             catch  {            }
         }
-        public void FindFilesCrossPlatform(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool verbose = false)
+        public void FindFilesCrossPlatform(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, bool verbose = false)
         {
             try
             {
@@ -142,6 +144,7 @@ namespace SMBeagle.FileDiscovery
                                         continue;
                                     string owner = includeFileOwner ? "<NOT_SUPPORTED>" : string.Empty;
                                     string fastHash = includeFastHash ? CrossPlatformHelper.ComputeFastHash(fileStore, path) : string.Empty;
+                                    string fileSignature = includeFileSignature ? CrossPlatformHelper.DetectFileSignature(fileStore, path) : string.Empty;
                                     Files.Add(
                                         new File(
                                             parentDirectory: this,
@@ -154,7 +157,8 @@ namespace SMBeagle.FileDiscovery
                                             accessTime: includeAccessTime ? d.LastAccessTime : default,
                                             fileAttributes: includeFileAttributes ? d.FileAttributes.ToString() : "",
                                             owner: owner,
-                                            fastHash: fastHash
+                                            fastHash: fastHash,
+                                            fileSignature: fileSignature
                                         )
                                     );
                                 }
@@ -241,17 +245,17 @@ namespace SMBeagle.FileDiscovery
             }
         }
 
-        public void FindFilesRecursively(bool crossPlatform, ref bool abort, List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool verbose = false)
+        public void FindFilesRecursively(bool crossPlatform, ref bool abort, List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, bool verbose = false)
         {
             if (crossPlatform)
-                FindFilesCrossPlatform(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, verbose);
+                FindFilesCrossPlatform(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, includeFileSignature, verbose);
             else
-                FindFilesWindows(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, verbose);
+                FindFilesWindows(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, includeFileSignature, verbose);
             foreach (Directory dir in RecursiveChildDirectories)
             {
                 if (abort)
                     return;
-                dir.FindFilesRecursively(crossPlatform, ref abort, extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, verbose);
+                dir.FindFilesRecursively(crossPlatform, ref abort, extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, includeFileSignature, verbose);
             }
         }
 

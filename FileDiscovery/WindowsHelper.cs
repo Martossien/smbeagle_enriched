@@ -407,6 +407,26 @@ namespace SMBeagle.FileDiscovery
             return string.Empty;
         }
     }
+
+    public static string DetectFileSignature(string filePath)
+    {
+        const int READ_SIZE = 32;
+        try
+        {
+            using FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            int toRead = (int)Math.Min(READ_SIZE, fs.Length);
+            byte[] buffer = new byte[toRead];
+            int read = fs.Read(buffer, 0, toRead);
+            using MemoryStream ms = new MemoryStream(buffer, 0, read);
+            var inspector = new FileSignatures.FileFormatInspector();
+            var format = inspector.DetermineFileFormat(ms);
+            return format == null ? "unknown" : format.Extension.TrimStart('.').ToLower();
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
     public static void RetrieveFile(File file, string outputPath)
     {
             System.IO.File.Copy(file.FullName, outputPath, true);
