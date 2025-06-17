@@ -71,7 +71,7 @@ namespace SMBeagle.FileDiscovery
             Share = share;
             Path = path;
         }
-        public void FindFilesWindows(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool verbose = false)
+        public void FindFilesWindows(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool verbose = false)
         {
             try
             {
@@ -82,6 +82,11 @@ namespace SMBeagle.FileDiscovery
                 {
                     if (extensionsToIgnore.Contains(file.Extension.ToLower()))
                         continue;
+                    string owner = string.Empty;
+#pragma warning disable CA1416
+                    if (includeFileOwner)
+                        owner = WindowsHelper.GetFileOwner(file.FullName);
+#pragma warning restore CA1416
                     Files.Add(
                         new File(
                             parentDirectory: this,
@@ -92,14 +97,15 @@ namespace SMBeagle.FileDiscovery
                             lastWriteTime: file.LastWriteTime,
                             fileSize: includeFileSize ? file.Length : 0,
                             accessTime: includeAccessTime ? file.LastAccessTime : default,
-                            fileAttributes: includeFileAttributes ? file.Attributes.ToString() : ""
+                            fileAttributes: includeFileAttributes ? file.Attributes.ToString() : "",
+                            owner: owner
                         )
                     );
                 }
             }
             catch  {            }
         }
-        public void FindFilesCrossPlatform(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool verbose = false)
+        public void FindFilesCrossPlatform(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool verbose = false)
         {
             try
             {
@@ -132,6 +138,7 @@ namespace SMBeagle.FileDiscovery
                                         path = $"{Path}\\{d.FileName}";
                                     if (extensionsToIgnore.Contains(extension.ToLower()))
                                         continue;
+                                    string owner = includeFileOwner ? "<NOT_SUPPORTED>" : string.Empty;
                                     Files.Add(
                                         new File(
                                             parentDirectory: this,
@@ -142,7 +149,8 @@ namespace SMBeagle.FileDiscovery
                                             lastWriteTime: d.LastWriteTime,
                                             fileSize: includeFileSize ? (long)d.EndOfFile : 0,
                                             accessTime: includeAccessTime ? d.LastAccessTime : default,
-                                            fileAttributes: includeFileAttributes ? d.FileAttributes.ToString() : ""
+                                            fileAttributes: includeFileAttributes ? d.FileAttributes.ToString() : "",
+                                            owner: owner
                                         )
                                     );
                                 }
@@ -229,17 +237,17 @@ namespace SMBeagle.FileDiscovery
             }
         }
 
-        public void FindFilesRecursively(bool crossPlatform, ref bool abort, List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool verbose = false)
+        public void FindFilesRecursively(bool crossPlatform, ref bool abort, List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool verbose = false)
         {
             if (crossPlatform)
-                FindFilesCrossPlatform(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, verbose);
+                FindFilesCrossPlatform(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, verbose);
             else
-                FindFilesWindows(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, verbose);
+                FindFilesWindows(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, verbose);
             foreach (Directory dir in RecursiveChildDirectories)
             {
                 if (abort)
                     return;
-                dir.FindFilesRecursively(crossPlatform, ref abort, extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, verbose);
+                dir.FindFilesRecursively(crossPlatform, ref abort, extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, verbose);
             }
         }
 
