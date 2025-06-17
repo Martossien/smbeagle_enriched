@@ -3,6 +3,8 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.Principal;
+using System.Text;
+using System.Collections.Generic;
 
 namespace SMBeagle.FileDiscovery
 {
@@ -292,6 +294,87 @@ namespace SMBeagle.FileDiscovery
             // An error is expected if not writeable
         }
         return acl;
+    }
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    static extern bool GetFileSecurity(string lpFileName, SECURITY_INFORMATION RequestedInformation, IntPtr pSecurityDescriptor, uint nLength, out uint lpnLengthNeeded);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    static extern bool GetSecurityDescriptorOwner(IntPtr pSecurityDescriptor, out IntPtr pOwner, out bool lpbOwnerDefaulted);
+    [DllImport("advapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    static extern bool LookupAccountSid(string lpSystemName, IntPtr Sid, StringBuilder lpName, ref uint cchName, StringBuilder lpReferencedDomainName, ref uint cchReferencedDomainName, out SID_NAME_USE peUse);
+
+    enum SID_NAME_USE
+    {
+        SidTypeUser = 1,
+        SidTypeGroup,
+        SidTypeDomain,
+        SidTypeAlias,
+        SidTypeWellKnownGroup,
+        SidTypeDeletedAccount,
+        SidTypeInvalid,
+        SidTypeUnknown,
+        SidTypeComputer,
+        SidTypeLabel
+    }
+
+    static Dictionary<string, string> _sidCache = new();
+
+    public static string GetFileOwner(string filePath)
+    {
+        string ownerResult = string.Empty;
+        uint needed = 0;
+        if (!GetFileSecurity(filePath, SECURITY_INFORMATION.OWNER_SECURITY_INFORMATION, IntPtr.Zero, 0, out needed))
+        {
+            int err = Marshal.GetLastWin32Error();
+            if (err != 122) // ERROR_INSUFFICIENT_BUFFER
+                return $"<ERROR_{err}>";
+        }
+        IntPtr pSD = Marshal.AllocHGlobal((int)needed);
+        try
+        {
+            if (!GetFileSecurity(filePath, SECURITY_INFORMATION.OWNER_SECURITY_INFORMATION, pSD, needed, out needed))
+            {
+                int err = Marshal.GetLastWin32Error();
+                if (err == 5) return "<ACCESS_DENIED>";
+                return $"<ERROR_{err}>";
+            }
+            IntPtr pOwner;
+            bool def;
+            if (!GetSecurityDescriptorOwner(pSD, out pOwner, out def))
+            {
+                int err = Marshal.GetLastWin32Error();
+                return $"<ERROR_{err}>";
+            }
+
+            SecurityIdentifier sid = new SecurityIdentifier(pOwner);
+            string sidStr = sid.Value;
+            if (_sidCache.TryGetValue(sidStr, out ownerResult))
+                return ownerResult;
+
+            uint cchName = 0;
+            uint cchDomain = 0;
+            SID_NAME_USE use;
+            LookupAccountSid(null, pOwner, null, ref cchName, null, ref cchDomain, out use);
+            StringBuilder name = new StringBuilder((int)cchName);
+            StringBuilder domain = new StringBuilder((int)cchDomain);
+            if (!LookupAccountSid(null, pOwner, name, ref cchName, domain, ref cchDomain, out use))
+            {
+                int err = Marshal.GetLastWin32Error();
+                if (err == 1332) { ownerResult = sidStr; }
+                else if (err == 5) { ownerResult = "<ACCESS_DENIED>"; }
+                else { ownerResult = $"<ERROR_{err}>"; }
+            }
+            else
+            {
+                ownerResult = $"{domain}\\{name}";
+            }
+            _sidCache[sidStr] = ownerResult;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(pSD);
+        }
+        return ownerResult;
     }
 
     static void FreePointerH(IntPtr pointer)
