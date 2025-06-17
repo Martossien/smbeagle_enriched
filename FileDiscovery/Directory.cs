@@ -251,7 +251,11 @@ namespace SMBeagle.FileDiscovery
                 FindFilesCrossPlatform(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, includeFileSignature, verbose);
             else
                 FindFilesWindows(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, includeFileSignature, verbose);
-            foreach (Directory dir in RecursiveChildDirectories)
+            // Iterate only direct children here. Using RecursiveChildDirectories
+            // caused repeated traversal of the same subdirectories at every level,
+            // dramatically impacting performance when verbose access-time logging
+            // was enabled.
+            foreach (Directory dir in ChildDirectories)
             {
                 if (abort)
                     return;
