@@ -143,56 +143,68 @@ namespace SMBeagle.FileDiscovery
                 ISMBFileStore fileStore = Share.Host.Client.TreeConnect(Share.Name, out status);
                 if (status == NTStatus.STATUS_SUCCESS)
                 {
-                    object directoryHandle;
-                    FileStatus fileStatus;
-                    status = fileStore.CreateFile(out directoryHandle, out fileStatus, Path, AccessMask.GENERIC_READ, SMBLibrary.FileAttributes.Directory, ShareAccess.Read | ShareAccess.Write, CreateDisposition.FILE_OPEN, CreateOptions.FILE_DIRECTORY_FILE, null);
-                    if (status == NTStatus.STATUS_SUCCESS)
+                    try
                     {
-                        List<QueryDirectoryFileInformation> fileList;
-                        //TODO: can we filter on just files
-                        fileStore.QueryDirectory(out fileList, directoryHandle, "*", FileInformationClass.FileDirectoryInformation);
-                        if (verbose && includeAccessTime)
-                            OutputHelper.WriteLine($"Collecting access times for {fileList.Count} files", 2);
-                        foreach (QueryDirectoryFileInformation f in fileList)
+                        object directoryHandle;
+                        FileStatus fileStatus;
+                        status = fileStore.CreateFile(out directoryHandle, out fileStatus, Path, AccessMask.GENERIC_READ, SMBLibrary.FileAttributes.Directory, ShareAccess.Read | ShareAccess.Write, CreateDisposition.FILE_OPEN, CreateOptions.FILE_DIRECTORY_FILE, null);
+                        if (status == NTStatus.STATUS_SUCCESS)
                         {
-                            if (f.FileInformationClass == FileInformationClass.FileDirectoryInformation)
+                            try
                             {
-                                FileDirectoryInformation d = (FileDirectoryInformation)f;
-                                if (! d.FileAttributes.HasFlag(SMBLibrary.FileAttributes.Directory))
+                                List<QueryDirectoryFileInformation> fileList;
+                                //TODO: can we filter on just files
+                                fileStore.QueryDirectory(out fileList, directoryHandle, "*", FileInformationClass.FileDirectoryInformation);
+                                if (verbose && includeAccessTime)
+                                    OutputHelper.WriteLine($"Collecting access times for {fileList.Count} files", 2);
+                                foreach (QueryDirectoryFileInformation f in fileList)
                                 {
-                                    string extension = d.FileName.Substring(d.FileName.LastIndexOf('.') + 1);
-                                    string path;
-                                    if (Path == "")
-                                        path = d.FileName;
-                                    else
-                                        path = $"{Path}\\{d.FileName}";
-                                    if (extensionsToIgnore.Contains(extension.ToLower()))
-                                        continue;
-                                    string owner = includeFileOwner ? "<NOT_SUPPORTED>" : string.Empty;
-                                    string fastHash = includeFastHash ? CrossPlatformHelper.ComputeFastHash(fileStore, path) : string.Empty;
-                                    string fileSignature = includeFileSignature ? CrossPlatformHelper.DetectFileSignature(fileStore, path) : string.Empty;
-                                    Files.Add(
-                                        new File(
-                                            parentDirectory: this,
-                                            name: d.FileName,
-                                            fullName: path,
-                                            extension: extension,
-                                            creationTime: d.CreationTime,
-                                            lastWriteTime: d.LastWriteTime,
-                                            fileSize: includeFileSize ? (long)d.EndOfFile : 0,
-                                            accessTime: includeAccessTime ? d.LastAccessTime : default,
-                                            fileAttributes: includeFileAttributes ? d.FileAttributes.ToString() : "",
-                                            owner: owner,
-                                            fastHash: fastHash,
-                                            fileSignature: fileSignature
-                                        )
-                                    );
+                                    if (f.FileInformationClass == FileInformationClass.FileDirectoryInformation)
+                                    {
+                                        FileDirectoryInformation d = (FileDirectoryInformation)f;
+                                        if (! d.FileAttributes.HasFlag(SMBLibrary.FileAttributes.Directory))
+                                        {
+                                            string extension = d.FileName.Substring(d.FileName.LastIndexOf('.') + 1);
+                                            string path;
+                                            if (Path == "")
+                                                path = d.FileName;
+                                            else
+                                                path = $"{Path}\\{d.FileName}";
+                                            if (extensionsToIgnore?.Contains(extension.ToLower()) == true)
+                                                continue;
+                                            string owner = includeFileOwner ? "<NOT_SUPPORTED>" : string.Empty;
+                                            string fastHash = includeFastHash ? CrossPlatformHelper.ComputeFastHash(fileStore, path) : string.Empty;
+                                            string fileSignature = includeFileSignature ? CrossPlatformHelper.DetectFileSignature(fileStore, path) : string.Empty;
+                                            Files.Add(
+                                                new File(
+                                                    parentDirectory: this,
+                                                    name: d.FileName,
+                                                    fullName: path,
+                                                    extension: extension,
+                                                    creationTime: d.CreationTime,
+                                                    lastWriteTime: d.LastWriteTime,
+                                                    fileSize: includeFileSize ? (long)d.EndOfFile : 0,
+                                                    accessTime: includeAccessTime ? d.LastAccessTime : default,
+                                                    fileAttributes: includeFileAttributes ? d.FileAttributes.ToString() : "",
+                                                    owner: owner,
+                                                    fastHash: fastHash,
+                                                    fileSignature: fileSignature
+                                                )
+                                            );
+                                        }
+                                    }
                                 }
                             }
+                            finally
+                            {
+                                fileStore.CloseFile(directoryHandle);
+                            }
                         }
-                        fileStore.CloseFile(directoryHandle);
                     }
-                    fileStore.Disconnect();
+                    finally
+                    {
+                        fileStore.Disconnect();
+                    }
                 }
             }
             catch 
@@ -224,32 +236,44 @@ namespace SMBeagle.FileDiscovery
                 ISMBFileStore fileStore = Share.Host.Client.TreeConnect(Share.Name, out status);
                 if (status == NTStatus.STATUS_SUCCESS)
                 {
-                    object directoryHandle;
-                    FileStatus fileStatus;
-                    status = fileStore.CreateFile(out directoryHandle, out fileStatus, Path, AccessMask.GENERIC_READ, SMBLibrary.FileAttributes.Directory, ShareAccess.Read | ShareAccess.Write, CreateDisposition.FILE_OPEN, CreateOptions.FILE_DIRECTORY_FILE, null);
-                    if (status == NTStatus.STATUS_SUCCESS)
+                    try
                     {
-                        List<QueryDirectoryFileInformation> fileList;
-                        //TODO: can we filter on just files
-                        fileStore.QueryDirectory(out fileList, directoryHandle, "*", FileInformationClass.FileDirectoryInformation);
-                        foreach (QueryDirectoryFileInformation f in fileList)
+                        object directoryHandle;
+                        FileStatus fileStatus;
+                        status = fileStore.CreateFile(out directoryHandle, out fileStatus, Path, AccessMask.GENERIC_READ, SMBLibrary.FileAttributes.Directory, ShareAccess.Read | ShareAccess.Write, CreateDisposition.FILE_OPEN, CreateOptions.FILE_DIRECTORY_FILE, null);
+                        if (status == NTStatus.STATUS_SUCCESS)
                         {
-                            if (f.FileInformationClass == FileInformationClass.FileDirectoryInformation)
+                            try
                             {
-                                FileDirectoryInformation d = (FileDirectoryInformation) f;
-                                if (d.FileAttributes.HasFlag(SMBLibrary.FileAttributes.Directory) && d.FileName != "." && d.FileName != "..")
+                                List<QueryDirectoryFileInformation> fileList;
+                                //TODO: can we filter on just files
+                                fileStore.QueryDirectory(out fileList, directoryHandle, "*", FileInformationClass.FileDirectoryInformation);
+                                foreach (QueryDirectoryFileInformation f in fileList)
                                 {
-                                    string path = "";
-                                    if (Path != "")
-                                        path += $"{Path}\\";
-                                    path += d.FileName;
-                                    ChildDirectories.Add(new Directory(path: path, share: Share) { Parent = this });
+                                    if (f.FileInformationClass == FileInformationClass.FileDirectoryInformation)
+                                    {
+                                        FileDirectoryInformation d = (FileDirectoryInformation) f;
+                                        if (d.FileAttributes.HasFlag(SMBLibrary.FileAttributes.Directory) && d.FileName != "." && d.FileName != "..")
+                                        {
+                                            string path = "";
+                                            if (Path != "")
+                                                path += $"{Path}\\";
+                                            path += d.FileName;
+                                            ChildDirectories.Add(new Directory(path: path, share: Share) { Parent = this });
+                                        }
+                                    }
                                 }
                             }
+                            finally
+                            {
+                                fileStore.CloseFile(directoryHandle);
+                            }
                         }
-                        fileStore.CloseFile(directoryHandle);
                     }
-                    fileStore.Disconnect();
+                    finally
+                    {
+                        fileStore.Disconnect();
+                    }
                 } 
             }
             catch 

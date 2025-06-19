@@ -151,26 +151,33 @@ namespace SMBeagle.FileDiscovery
             {
                 abort = false;
                 OutputHelper.WriteLine($"\renumerating files in '{dir.UNCPath}' - CTRL-BREAK or CTRL-PAUSE to SKIP                                          ", 1, false);
-                // TODO: pass in the ignored extensions from the commandline
-                dir.FindFilesRecursively(crossPlatform: crossPlatform, ref abort, extensionsToIgnore: new List<string>() { ".dll",".manifest",".cat" }, includeFileSize: _includeFileSize, includeAccessTime: _includeAccessTime, includeFileAttributes: _includeFileAttributes, includeFileOwner: _includeFileOwner, includeFastHash: _includeFastHash, includeFileSignature: _includeFileSignature, verbose: verbose);
+                var extensionsToIgnore = new List<string>() { ".dll", ".manifest", ".cat" };
+                dir.FindFilesRecursively(crossPlatform: crossPlatform, ref abort, extensionsToIgnore: extensionsToIgnore, includeFileSize: _includeFileSize, includeAccessTime: _includeAccessTime, includeFileAttributes: _includeFileAttributes, includeFileOwner: _includeFileOwner, includeFastHash: _includeFastHash, includeFileSignature: _includeFileSignature, verbose: verbose);
                 if (verbose)
                     OutputHelper.WriteLine($"\rFound {dir.ChildDirectories.Count} child directories and {dir.RecursiveFiles.Count} files in '{dir.UNCPath}'",2);
                 
-                foreach (File file in dir.RecursiveFiles)
+                var filesToProcess = new List<File>(dir.RecursiveFiles);
+                foreach (File file in filesToProcess)
                 {
-                    if (FilesSentForOutput.Add($"{dir.Share.uncPath}{file.FullName}".ToLower())) // returns True if not already present
+                    string fileKey = $"{dir.Share.uncPath}{file.FullName}".ToLower();
+                    bool addedToSet;
+                    lock (FilesSentForOutput)
                     {
-                        // Cache fullnames and dont send a dupe
+                        addedToSet = FilesSentForOutput.Add(fileKey);
+                    }
+                    
+                    if (addedToSet) // returns True if not already present
+                    {
                         if (enumerateAcls)
                             FetchFilePermission(file, crossPlatform, getPermissionsForSingleFileInDir);
 
 						OutputHelper.AddPayload(new Output.FileOutput(file), Enums.OutputtersEnum.File);
 
-						if (fetchFiles && filePatterns.Any(pattern => Regex.IsMatch(file.Name, pattern, RegexOptions.IgnoreCase)))
+						if (fetchFiles && filePatterns?.Any(pattern => Regex.IsMatch(file.Name, pattern, RegexOptions.IgnoreCase)) == true)
                         {
                             tasks.Add(Task.Run(() => FetchFile(file, crossPlatform, outputDirectory)));
                             if (crossPlatform)
-							    Task.WaitAll(tasks.ToArray()); // TODO: Generate a Client on demand so we can download in parallel - https://github.com/TalAloni/SMBLibrary/issues/59
+							    Task.WaitAll(tasks.ToArray());
 						}
 					}
                 }

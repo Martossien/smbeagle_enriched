@@ -35,12 +35,20 @@ namespace SMBeagle.FileDiscovery
             if (status != NTStatus.STATUS_SUCCESS)
             {
                 Console.WriteLine("ERROR: Could not connect to share");
+                return acl;
             }
-            string filePath = file.FullName;
-            acl.Readable = CheckAccessMask(fileStore, filePath, AccessMask.GENERIC_READ | AccessMask.SYNCHRONIZE);
-            acl.Writeable = CheckAccessMask(fileStore, filePath, AccessMask.GENERIC_WRITE | AccessMask.SYNCHRONIZE);
-            acl.Deletable = CheckAccessMask(fileStore, filePath, AccessMask.DELETE | AccessMask.SYNCHRONIZE);
-            fileStore.Disconnect();
+            
+            try
+            {
+                string filePath = file.FullName;
+                acl.Readable = CheckAccessMask(fileStore, filePath, AccessMask.GENERIC_READ | AccessMask.SYNCHRONIZE);
+                acl.Writeable = CheckAccessMask(fileStore, filePath, AccessMask.GENERIC_WRITE | AccessMask.SYNCHRONIZE);
+                acl.Deletable = CheckAccessMask(fileStore, filePath, AccessMask.DELETE | AccessMask.SYNCHRONIZE);
+            }
+            finally
+            {
+                fileStore.Disconnect();
+            }
             return acl;
         }
 		public static void RetrieveFile(File file, string outputPath)
@@ -51,48 +59,60 @@ namespace SMBeagle.FileDiscovery
 			if (status != NTStatus.STATUS_SUCCESS)
 			{
 				Console.WriteLine("ERROR: Could not connect to share");
+				return;
 			}
-			object handle;
-            byte[] filebytes;
-			NTStatus result = fileStore.CreateFile(out handle, out _, file.FullName, AccessMask.GENERIC_READ | AccessMask.SYNCHRONIZE, SMBLibrary.FileAttributes.Normal, ShareAccess.None, CreateDisposition.FILE_OPEN, CreateOptions.FILE_NON_DIRECTORY_FILE | CreateOptions.FILE_SYNCHRONOUS_IO_ALERT, null);
-			if (result == NTStatus.STATUS_SUCCESS)
+			
+			try
 			{
-				// Open a FileStream to write chunks to the local file
-				using (FileStream localFileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write))
+				object handle;
+				NTStatus result = fileStore.CreateFile(out handle, out _, file.FullName, AccessMask.GENERIC_READ | AccessMask.SYNCHRONIZE, SMBLibrary.FileAttributes.Normal, ShareAccess.None, CreateDisposition.FILE_OPEN, CreateOptions.FILE_NON_DIRECTORY_FILE | CreateOptions.FILE_SYNCHRONOUS_IO_ALERT, null);
+				if (result == NTStatus.STATUS_SUCCESS)
 				{
-					long bytesRead = 0;
-					byte[] data;
-
-					while (true)
+					try
 					{
-						// Read the next chunk from the remote file
-						status = fileStore.ReadFile(out data, handle, bytesRead, (int)file.ParentDirectory.Share.Host.Client.MaxReadSize);
-
-						// Check for read errors or end of file
-						if (status != NTStatus.STATUS_SUCCESS && status != NTStatus.STATUS_END_OF_FILE)
+						// Open a FileStream to write chunks to the local file
+						using (FileStream localFileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write))
 						{
-							throw new Exception("Failed to read from file. Status: " + status.ToString());
+							long bytesRead = 0;
+							byte[] data;
+
+							while (true)
+							{
+								// Read the next chunk from the remote file
+								status = fileStore.ReadFile(out data, handle, bytesRead, (int)file.ParentDirectory.Share.Host.Client.MaxReadSize);
+
+								// Check for read errors or end of file
+								if (status != NTStatus.STATUS_SUCCESS && status != NTStatus.STATUS_END_OF_FILE)
+								{
+									throw new Exception("Failed to read from file. Status: " + status.ToString());
+								}
+
+								if (status == NTStatus.STATUS_END_OF_FILE || data.Length == 0)
+								{
+									// Done reading
+									break;
+								}
+
+								// Write the chunk to the local file
+								localFileStream.Write(data, 0, data.Length);
+
+								// Update total bytes read
+								bytesRead += data.Length;
+							}
 						}
-
-						if (status == NTStatus.STATUS_END_OF_FILE || data.Length == 0)
-						{
-							// Done reading
-							break;
-						}
-
-						// Write the chunk to the local file
-						localFileStream.Write(data, 0, data.Length);
-
-						// Update total bytes read
-						bytesRead += data.Length;
+					}
+					finally
+					{
+						// Close the remote file
+						fileStore.CloseFile(handle);
 					}
 				}
-
-				// Close the remote file
-				status = fileStore.CloseFile(handle);
 			}
-			// Disconnect from the SMB file store
-                        status = fileStore.Disconnect();
+			finally
+			{
+				// Disconnect from the SMB file store
+				fileStore.Disconnect();
+			}
                 }
 
         public static string ComputeFastHash(ISMBFileStore fileStore, string filePath)

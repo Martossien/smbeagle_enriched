@@ -318,7 +318,8 @@ namespace SMBeagle.FileDiscovery
         SidTypeLabel
     }
 
-    static Dictionary<string, string> _sidCache = new();
+    static readonly Dictionary<string, string> _sidCache = new();
+    static readonly object _sidCacheLock = new object();
     private const int MAX_SID_CACHE_SIZE = 10000;
 
     public static string GetFileOwner(string filePath)
@@ -350,8 +351,11 @@ namespace SMBeagle.FileDiscovery
 
             SecurityIdentifier sid = new SecurityIdentifier(pOwner);
             string sidStr = sid.Value;
-            if (_sidCache.TryGetValue(sidStr, out ownerResult))
-                return ownerResult;
+            lock (_sidCacheLock)
+            {
+                if (_sidCache.TryGetValue(sidStr, out ownerResult))
+                    return ownerResult;
+            }
 
             uint cchName = 0;
             uint cchDomain = 0;
@@ -370,12 +374,15 @@ namespace SMBeagle.FileDiscovery
             {
                 ownerResult = $"{domain}\\{name}";
             }
-            // Prevent unbounded cache growth
-            if (_sidCache.Count >= MAX_SID_CACHE_SIZE)
+            // Prevent unbounded cache growth with thread safety
+            lock (_sidCacheLock)
             {
-                _sidCache.Clear();
+                if (_sidCache.Count >= MAX_SID_CACHE_SIZE)
+                {
+                    _sidCache.Clear();
+                }
+                _sidCache[sidStr] = ownerResult;
             }
-            _sidCache[sidStr] = ownerResult;
         }
         finally
         {
