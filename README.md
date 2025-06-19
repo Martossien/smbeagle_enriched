@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg)](https://github.com/Martossien/smbeagle_enriched/releases)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-SMBeagle_enriched is an enhanced fork of the excellent [SMBeagle](https://github.com/punk-security/smbeagle) project by [Punk Security](https://www.punksecurity.co.uk). This version extends the original tool with additional file metadata collection capabilities while preserving all existing functionality.
+SMBeagle_enriched is an enhanced fork of the excellent [SMBeagle](https://github.com/punk-security/smbeagle) project by [Punk Security](https://www.punksecurity.co.uk). This version extends the original tool with additional file metadata collection capabilities and local filesystem scanning while preserving all existing functionality.
 
 ## Acknowledgments
 
@@ -15,8 +15,9 @@ This project builds upon the outstanding work of the SMBeagle team at Punk Secur
 
 ## What's New
 
-SMBeagle_enriched adds six additional metadata collection options to the original tool:
+SMBeagle_enriched adds **seven enhanced capabilities** to the original tool:
 
+### **Enhanced Metadata Collection (6 options)**
 - `--sizefile` - Collect file sizes in bytes
 - `--access-time` - Collect last access timestamps  
 - `--fileattributes` - Collect Windows file system attributes
@@ -24,7 +25,10 @@ SMBeagle_enriched adds six additional metadata collection options to the origina
 - `--fasthash` - Generate fast xxHash64 checksums
 - `--file-signature` - Detect file types via magic byte analysis
 
-These additions are designed to support forensic analysis, data governance, and enhanced security auditing workflows.
+### **Local Filesystem Scanning (NEW)**
+- `--local-path` - Scan local directories instead of SMB network discovery
+
+These additions support forensic analysis, data governance, security auditing, and offline system analysis workflows.
 
 ## Platform Compatibility
 
@@ -34,9 +38,10 @@ SMBeagle_enriched provides full functionality on Windows platforms:
 ✅ **Fully Supported:**
 - All original SMBeagle features
 - Native Windows authentication (no credentials required)
-- All six new metadata options with Win32 API integration
+- All seven new capabilities with Win32 API integration
 - File ownership resolution (`--ownerfile`) with domain integration
 - Windows-specific file attributes (`--fileattributes`)
+- Local filesystem scanning (`--local-path`)
 
 ### Linux Support  
 When running on Linux or using explicit credentials:
@@ -46,25 +51,19 @@ When running on Linux or using explicit credentials:
 - SMBLibrary-based remote enumeration
 - File size, access time, and basic attributes collection
 - Hash calculation and file signature detection
+- Local filesystem scanning with Unix permissions
 
 ⚠️ **Limitations:**
-- `--ownerfile` returns `<NOT_SUPPORTED>` (Windows-only feature)
+- `--ownerfile` returns `<NOT_SUPPORTED>` for SMB scans (Windows-only feature)
 - File attributes may have different representations
-- Requires explicit username/password authentication
-
-### Cross-Platform Technical Notes
-
-The tool automatically detects the runtime platform and selects appropriate implementation:
-- **Windows**: Uses native Win32 APIs for maximum performance and feature completeness
-- **Linux**: Uses SMBLibrary for network-based SMB operations
-- **Authentication**: Windows supports integrated auth; Linux requires explicit credentials
+- Requires explicit username/password authentication for SMB
 
 ## Installation
 
 ### Requirements
 - .NET 9.0 Runtime or SDK
 - Windows 10+ or Linux (glibc 2.17+)
-- Network access to target SMB shares
+- Network access to target SMB shares (for network scanning)
 
 ### Binary Installation
 Download the appropriate pre-compiled binary from [Releases](https://github.com/Martossien/smbeagle_enriched/releases):
@@ -94,7 +93,7 @@ dotnet build --configuration Release
 
 ## Usage
 
-### Basic Examples
+### Network SMB Scanning (Original Functionality)
 
 **Standard SMB enumeration with enhanced metadata:**
 ```bash
@@ -115,10 +114,37 @@ SMBeagle -c forensic_audit.csv --sizefile --access-time --fileattributes --owner
 SMBeagle -e elasticsearch:9200 -n 192.168.1.0/24 --fasthash --file-signature
 ```
 
-### New Command Line Options
+### Local Filesystem Scanning (NEW)
+
+**Basic local directory scan:**
+```bash
+# Single directory
+SMBeagle --local-path /home/data -c local_scan.csv
+
+# Multiple directories  
+SMBeagle --local-path /var/log /opt/data /home -c multi_scan.csv
+```
+
+**Complete local audit with all metadata:**
+```bash
+# Windows
+SMBeagle.exe --local-path C:\Users --sizefile --access-time --fileattributes --ownerfile --fasthash --file-signature -c complete_audit.csv -v
+
+# Linux
+./SMBeagle --local-path /home /var /opt --sizefile --access-time --fasthash --file-signature -c linux_audit.csv -v
+```
+
+**Offline forensic analysis:**
+```bash
+# Mounted evidence drive
+SMBeagle --local-path /mnt/evidence --sizefile --access-time --ownerfile --fasthash --file-signature -c evidence_analysis.csv
+```
+
+### Enhanced Command Line Options
 
 | Option | Description | Platform Support |
 |--------|-------------|-------------------|
+| `--local-path` | Scan local directories (multiple accepted) | Windows, Linux |
 | `--sizefile` | Collect file sizes in bytes | Windows, Linux |
 | `--access-time` | Collect last access timestamps | Windows, Linux |
 | `--fileattributes` | Collect file system attributes | Windows (full), Linux (basic) |
@@ -136,6 +162,32 @@ The enhanced version adds these columns to the standard SMBeagle CSV output:
 - `FastHash` - xxHash64 checksum (hex string)
 - `FileSignature` - Detected file type (e.g., "pdf", "docx", "unknown")
 
+## Use Cases
+
+### **Network Security Auditing**
+```bash
+# Discover sensitive files on network shares
+SMBeagle -e elasticsearch:9200 -n 10.0.0.0/8 --file-signature --fasthash --ownerfile
+```
+
+### **Local System Forensics**
+```bash
+# Analyze local system for incident response
+SMBeagle --local-path /home /var/log --sizefile --access-time --file-signature -c forensic.csv
+```
+
+### **Data Governance & Compliance**
+```bash
+# Complete data inventory with ownership
+SMBeagle -c inventory.csv --local-path /data --sizefile --ownerfile --fileattributes --access-time
+```
+
+### **Offline Analysis**
+```bash
+# Scan mounted drives without network access
+SMBeagle --local-path /mnt/backup --fasthash --file-signature -c backup_analysis.csv
+```
+
 ## Technical Implementation
 
 ### Performance Considerations
@@ -143,33 +195,23 @@ The enhanced version adds these columns to the standard SMBeagle CSV output:
 - Hash calculation limited to first 64KB for performance
 - File signature detection reads only magic byte headers (32 bytes)
 - Owner resolution uses SID caching to reduce Windows API calls
+- Local scanning bypasses network latency for faster processing
 
 ### Dependencies
 - **FileSignatures 5.2.0** - Magic byte file type detection
 - **System.IO.Hashing 9.0.0** - Native .NET 9 xxHash64 implementation  
-- **K4os.Hash.xxHash 1.0.8** - Alternative xxHash implementation
+- **Mono.Posix.NETStandard 5.20.1** - Unix permissions support
 - Original SMBeagle dependencies preserved
-
-### Architecture Notes
-The enhanced metadata collection follows a consistent pattern:
-1. CLI option parsing and propagation through `FileFinder`
-2. Conditional metadata collection in `Directory` enumeration methods
-3. Platform-specific implementation in `WindowsHelper`/`CrossPlatformHelper`
-4. Unified output through existing `FileOutput` schema
 
 ## Current Status
 
-🚧 **Testing Phase**: This enhanced version is currently undergoing comprehensive testing across various Windows and Linux environments. While the core functionality is stable, users should validate behavior in their specific environments.
-
-## Docker Support
-
-Docker support is not included in this release. Users requiring containerized deployment should use the original SMBeagle project or deploy using the native binaries with appropriate volume mounts.
+🚀 **Production Ready**: This enhanced version has been tested across various Windows and Linux environments and is ready for production use.
 
 ## Limitations and Known Issues
 
-- **Cross-platform ownership**: `--ownerfile` only functions on Windows platforms
+- **Cross-platform ownership**: `--ownerfile` only functions on Windows platforms for SMB scans
+- **Local vs Network**: `--local-path` is mutually exclusive with network discovery options
 - **Large file performance**: Hash calculation on very large files may impact enumeration speed
-- **Memory usage**: Extensive metadata collection on large shares may increase memory consumption
 - **File signature accuracy**: Detection relies on magic bytes and may not identify all file types correctly
 
 ## Contributing
@@ -182,7 +224,7 @@ This project maintains compatibility with the original SMBeagle architecture. Wh
 
 ## Support and Issues
 
-For issues specific to the enhanced metadata features, please use this repository's issue tracker. For core SMBeagle functionality, consider reporting to the [original project](https://github.com/punk-security/smbeagle/issues) first.
+For issues specific to the enhanced metadata features or local scanning, please use this repository's issue tracker. For core SMBeagle functionality, consider reporting to the [original project](https://github.com/punk-security/smbeagle/issues) first.
 
 ## License
 
