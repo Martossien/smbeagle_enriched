@@ -73,6 +73,45 @@ namespace SMBeagle
             if (opts.CsvFile != null)
                 OutputHelper.EnableCSVLogging(opts.CsvFile, username);
 
+            // Handle local path scanning
+            if (opts.LocalPaths != null && opts.LocalPaths.Any())
+            {
+                OutputHelper.WriteLine("Performing local directory scan as --local-path is specified...");
+                if (opts.Networks.Any() || opts.Hosts.Any() || opts.ScanLocalShares)
+                    OutputHelper.WriteLine("WARNING: --local-path is mutually exclusive with network options. Network options ignored.", 1);
+
+                List<string> filePatterns = new List<string> { ".*(password|config|credentials|creds).*", ".*(ps1|bat|vbs|sh|cmd)$" };
+                if (opts.FilePatterns.Any())
+                {
+                    filePatterns = opts.FilePatterns.ToList();
+                    OutputHelper.WriteLine($"Using the provided regexes", 1);
+                }
+
+                FileFinder ffLocal = new(
+                    shares: new List<Share>(),
+                    outputDirectory: opts.OutputDirectory,
+                    filePatterns: filePatterns,
+                    fetchFiles: opts.GrabFiles,
+                    getPermissionsForSingleFileInDir: opts.EnumerateOnlyASingleFilesAcl,
+                    enumerateAcls: !opts.DontEnumerateAcls,
+                    quiet: opts.Quiet,
+                    verbose: opts.Verbose,
+                    crossPlatform: crossPlatform,
+                    includeFileSize: opts.SizeFile,
+                    includeAccessTime: opts.AccessTime,
+                    includeFileAttributes: opts.FileAttributes,
+                    includeFileOwner: opts.OwnerFile,
+                    includeFastHash: opts.FastHash,
+                    includeFileSignature: opts.FileSignature,
+                    localPaths: opts.LocalPaths.ToList()
+                    );
+
+                OutputHelper.WriteLine("7. Completing the writes to CSV or elasticsearch (or both)");
+                OutputHelper.CloseAndFlush();
+                OutputHelper.WriteLine(" -- AUDIT COMPLETE --");
+                return;
+            }
+
             NetworkFinder
                 nf = new();
 
@@ -403,6 +442,9 @@ namespace SMBeagle
             [Option('l', "scan-local-shares", Required = false, HelpText = "Scan the local shares on this machine")]
             public bool ScanLocalShares { get; set; }
 
+            [Option("local-path", Required = false, HelpText = "Scan local directories instead of SMB network discovery (multiple accepted)")]
+            public IEnumerable<string> LocalPaths { get; set; }
+
             [Option('D', "disable-network-discovery", Required = false, HelpText = "Disable network discovery")]
             public bool DisableNetworkDiscovery { get; set; }
 
@@ -491,6 +533,7 @@ namespace SMBeagle
                     yield return new Example("Collect file owner metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", OwnerFile = true });
                     yield return new Example("Collect fast hash metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", FastHash = true });
                     yield return new Example("Collect file signature metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", FileSignature = true });
+                    yield return new Example("Scan local directory", unParserSettings, new Options { LocalPaths = new List<string> { "/tmp" } });
                 }
             }
         }

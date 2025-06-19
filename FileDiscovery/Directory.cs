@@ -16,6 +16,9 @@ namespace SMBeagle.FileDiscovery
         {
             get
             {
+                // For local scans return the path directly
+                if (Share != null && Share.Name == "LOCAL_SCAN")
+                    return Path;
                 // Windows enum needs UNC Paths as Path but Cross-platform doesnt.
                 if (Path.StartsWith(@"\\"))
                     return Path;
@@ -212,6 +215,43 @@ namespace SMBeagle.FileDiscovery
                 //TODO: Implement better error handling here, one explosion should not wipe out the whole enumeration
             }
         }
+
+        public void FindFilesLocal(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, bool verbose = false)
+        {
+            try
+            {
+                FileInfo[] files = new DirectoryInfo(UNCPath).GetFiles("*.*");
+                if (verbose && includeAccessTime)
+                    OutputHelper.WriteLine($"Collecting access times for {files.Length} files", 2);
+                foreach (FileInfo file in files)
+                {
+                    if (extensionsToIgnore?.Contains(file.Extension.ToLower()) == true)
+                        continue;
+                    string owner = string.Empty;
+                    if (includeFileOwner)
+                        owner = LocalHelper.GetFileOwner(file.FullName);
+                    string fastHash = includeFastHash ? LocalHelper.ComputeFastHash(file.FullName) : string.Empty;
+                    string fileSignature = includeFileSignature ? LocalHelper.DetectFileSignature(file.FullName) : string.Empty;
+                    Files.Add(
+                        new File(
+                            parentDirectory: this,
+                            name: file.Name,
+                            fullName: file.FullName,
+                            extension: file.Extension,
+                            creationTime: file.CreationTime,
+                            lastWriteTime: file.LastWriteTime,
+                            fileSize: includeFileSize ? file.Length : 0,
+                            accessTime: includeAccessTime ? file.LastAccessTime : default,
+                            fileAttributes: includeFileAttributes ? file.Attributes.ToString() : "",
+                            owner: owner,
+                            fastHash: fastHash,
+                            fileSignature: fileSignature
+                        )
+                    );
+                }
+            }
+            catch { }
+        }
         public void Clear()
         {
             Files.Clear();
@@ -225,6 +265,17 @@ namespace SMBeagle.FileDiscovery
                 DirectoryInfo[] subDirs = new DirectoryInfo(UNCPath).GetDirectories();
                 foreach (DirectoryInfo di in subDirs)
                     ChildDirectories.Add(new Directory(path: di.FullName, share: Share) { Parent = this});
+            }
+            catch { }
+        }
+
+        private void FindDirectoriesLocal()
+        {
+            try
+            {
+                DirectoryInfo[] subDirs = new DirectoryInfo(UNCPath).GetDirectories();
+                foreach (DirectoryInfo di in subDirs)
+                    ChildDirectories.Add(new Directory(path: di.FullName, share: Share) { Parent = this });
             }
             catch { }
         }
@@ -283,7 +334,10 @@ namespace SMBeagle.FileDiscovery
         }
         public void FindDirectoriesRecursively(bool crossPlatform, ref bool abort)
         {
-            if (crossPlatform)
+            bool local = Share != null && Share.Name == "LOCAL_SCAN";
+            if (local)
+                FindDirectoriesLocal();
+            else if (crossPlatform)
                 FindDirectoriesCrossPlatform();
             else
                 FindDirectoriesWindows();
@@ -301,7 +355,10 @@ namespace SMBeagle.FileDiscovery
             {
                 OutputHelper.WriteLine($"Processing directory: {UNCPath}", 3);
             }
-            if (crossPlatform)
+            bool local = Share != null && Share.Name == "LOCAL_SCAN";
+            if (local)
+                FindFilesLocal(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, includeFileSignature, verbose);
+            else if (crossPlatform)
                 FindFilesCrossPlatform(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, includeFileSignature, verbose);
             else
                 FindFilesWindows(extensionsToIgnore, includeFileSize, includeAccessTime, includeFileAttributes, includeFileOwner, includeFastHash, includeFileSignature, verbose);

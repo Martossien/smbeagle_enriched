@@ -17,6 +17,8 @@ namespace SMBeagle.FileDiscovery
         IntPtr pClientContext { get; set; }
         HashSet<string> FilesSentForOutput { get; set; } = new();
 
+        bool _localScan = false;
+
         List<Directory> _directories { get; set; } = new();
         public List<Directory> Directories
         {
@@ -65,7 +67,7 @@ namespace SMBeagle.FileDiscovery
         bool _includeFileOwner;
         bool _includeFastHash;
         bool _includeFileSignature;
-        public FileFinder(List<Share> shares, string outputDirectory, bool fetchFiles, List<String> filePatterns, bool getPermissionsForSingleFileInDir = true, bool enumerateAcls = true, bool quiet = false, bool verbose = false, bool crossPlatform = false, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false)
+        public FileFinder(List<Share> shares, string outputDirectory, bool fetchFiles, List<String> filePatterns, bool getPermissionsForSingleFileInDir = true, bool enumerateAcls = true, bool quiet = false, bool verbose = false, bool crossPlatform = false, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, List<string>? localPaths = null)
         {
             _includeFileSize = includeFileSize;
             _includeAccessTime = includeAccessTime;
@@ -100,9 +102,17 @@ namespace SMBeagle.FileDiscovery
                 #pragma warning restore CA1416
             }
 
-            foreach (Share share in shares) //TODO: dedup share by host and name
+            if (localPaths != null && localPaths.Any())
             {
-                _directories.Add(new Directory(path: "", share:share) { DirectoryType = Enums.DirectoryTypeEnum.SMB });
+                _localScan = true;
+                _directories.AddRange(GetLocalPathDirectories(localPaths, verbose));
+            }
+            else
+            {
+                foreach (Share share in shares) //TODO: dedup share by host and name
+                {
+                    _directories.Add(new Directory(path: "", share: share) { DirectoryType = Enums.DirectoryTypeEnum.SMB });
+                }
             }
 
             if (!quiet)
@@ -131,7 +141,8 @@ namespace SMBeagle.FileDiscovery
             foreach (Directory dir in _directories)
             {
                 OutputHelper.WriteLine($"\rEnumerating all subdirectories for '{dir.UNCPath}' - CTRL-BREAK or CTRL-PAUSE to SKIP                                 ", 1, false);
-                dir.FindDirectoriesRecursively(crossPlatform: crossPlatform, ref abort);
+                bool useCross = _localScan ? false : crossPlatform;
+                dir.FindDirectoriesRecursively(crossPlatform: useCross, ref abort);
                 abort = false;
             }
 
@@ -152,7 +163,8 @@ namespace SMBeagle.FileDiscovery
                 abort = false;
                 OutputHelper.WriteLine($"\renumerating files in '{dir.UNCPath}' - CTRL-BREAK or CTRL-PAUSE to SKIP                                          ", 1, false);
                 var extensionsToIgnore = new List<string>() { ".dll", ".manifest", ".cat" };
-                dir.FindFilesRecursively(crossPlatform: crossPlatform, ref abort, extensionsToIgnore: extensionsToIgnore, includeFileSize: _includeFileSize, includeAccessTime: _includeAccessTime, includeFileAttributes: _includeFileAttributes, includeFileOwner: _includeFileOwner, includeFastHash: _includeFastHash, includeFileSignature: _includeFileSignature, verbose: verbose);
+                bool useCrossFiles = _localScan ? false : crossPlatform;
+                dir.FindFilesRecursively(crossPlatform: useCrossFiles, ref abort, extensionsToIgnore: extensionsToIgnore, includeFileSize: _includeFileSize, includeAccessTime: _includeAccessTime, includeFileAttributes: _includeFileAttributes, includeFileOwner: _includeFileOwner, includeFastHash: _includeFastHash, includeFileSignature: _includeFileSignature, verbose: verbose);
                 if (verbose)
                     OutputHelper.WriteLine($"\rFound {dir.ChildDirectories.Count} child directories and {dir.RecursiveFiles.Count} files in '{dir.UNCPath}'",2);
                 
@@ -169,14 +181,22 @@ namespace SMBeagle.FileDiscovery
                     if (addedToSet) // returns True if not already present
                     {
                         if (enumerateAcls)
-                            FetchFilePermission(file, crossPlatform, getPermissionsForSingleFileInDir);
+                        {
+                            if (_localScan)
+                                FetchFilePermissionLocal(file);
+                            else
+                                FetchFilePermission(file, crossPlatform, getPermissionsForSingleFileInDir);
+                        }
 
 						OutputHelper.AddPayload(new Output.FileOutput(file), Enums.OutputtersEnum.File);
 
 						if (fetchFiles && filePatterns?.Any(pattern => Regex.IsMatch(file.Name, pattern, RegexOptions.IgnoreCase)) == true)
                         {
-                            tasks.Add(Task.Run(() => FetchFile(file, crossPlatform, outputDirectory)));
-                            if (crossPlatform)
+                            if (_localScan)
+                                tasks.Add(Task.Run(() => FetchFileLocal(file, outputDirectory)));
+                            else
+                                tasks.Add(Task.Run(() => FetchFile(file, crossPlatform, outputDirectory)));
+                            if (crossPlatform && !_localScan)
 							    Task.WaitAll(tasks.ToArray());
 						}
 					}
@@ -200,6 +220,36 @@ namespace SMBeagle.FileDiscovery
                 DriveType.Removable => Enums.DirectoryTypeEnum.LOCAL_REMOVEABLE,
                 _ => Enums.DirectoryTypeEnum.UNKNOWN
             };
+        }
+
+        private List<Directory> GetLocalPathDirectories(List<string> localPaths, bool verbose = false)
+        {
+            var directories = new List<Directory>();
+            var dummyHost = new HostDiscovery.Host("localhost");
+            var dummyShare = new ShareDiscovery.Share(dummyHost, "LOCAL_SCAN", Enums.ShareTypeEnum.DISK);
+
+            foreach (string path in localPaths)
+            {
+                try
+                {
+                    if (!System.IO.Directory.Exists(path))
+                    {
+                        OutputHelper.WriteLine($"ERROR: Directory not found: {path}", 1);
+                        continue;
+                    }
+                    directories.Add(new Directory(path: path, share: dummyShare)
+                    {
+                        DirectoryType = Enums.DirectoryTypeEnum.LOCAL_FIXED
+                    });
+                    if (verbose)
+                        OutputHelper.WriteLine($"Added local directory for scanning: {path}", 1);
+                }
+                catch (Exception ex)
+                {
+                    OutputHelper.WriteLine($"ERROR: Cannot process path {path}: {ex.Message}", 1);
+                }
+            }
+            return directories;
         }
 
         //TODO: Reimplement at some point
@@ -270,6 +320,25 @@ namespace SMBeagle.FileDiscovery
 
             if (useCache)
                 CacheACL[file.ParentDirectory.Path] = permissions;
+            }
+        }
+
+        private void FetchFilePermissionLocal(File file)
+        {
+            ACL permissions = LocalHelper.ResolvePermissions(file.FullName);
+            file.SetPermissionsFromACL(permissions);
+        }
+
+        private void FetchFileLocal(File file, string outputDirectory)
+        {
+            try
+            {
+                string filename = $"{outputDirectory}{Path.DirectorySeparatorChar}{file.FullName}".Replace("\\", "_").Replace("/", "_");
+                System.IO.File.Copy(file.FullName, filename, true);
+            }
+            catch
+            {
+                // ignore errors during copy
             }
         }
 
