@@ -347,7 +347,7 @@ namespace SMBeagle
 
             OutputHelper.WriteLine("6. Enumerating accessible shares, this can be slow...");
 
-            List<String> filePatterns = new List<string> { ".*(password|config|credentials|creds).*", ".*(ps1|bat|vbs|sh|cmd)$" };
+            List<String> networkFilePatterns = new List<string> { ".*(password|config|credentials|creds).*", ".*(ps1|bat|vbs|sh|cmd)$" };
 
 
 			if (opts.GrabFiles)
@@ -355,7 +355,7 @@ namespace SMBeagle
                 OutputHelper.WriteLine($"Grabbing files and storing them in {opts.OutputDirectory}", 1);
                 if (opts.FilePatterns.Any())
                 {
-                    filePatterns = opts.FilePatterns.ToList();
+                    networkFilePatterns = opts.FilePatterns.ToList();
 					OutputHelper.WriteLine($"Using the provided regexes", 1);
 				}
             }
@@ -369,7 +369,7 @@ namespace SMBeagle
                 ff = new(
                     shares: shares,
                     outputDirectory: opts.OutputDirectory,
-                    filePatterns: filePatterns,
+                    filePatterns: networkFilePatterns,
                     fetchFiles: opts.GrabFiles,
                     getPermissionsForSingleFileInDir: opts.EnumerateOnlyASingleFilesAcl,
                     enumerateAcls: !opts.DontEnumerateAcls,

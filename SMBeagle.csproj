@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
-    <VersionPrefix>4.0.1.1</VersionPrefix>
+    <VersionPrefix>4.0.1.2</VersionPrefix>
     <!-- Configuration PRODUCTION CRITIQUE -->
     <SelfContained>true</SelfContained>
     <PublishTrimmed>false</PublishTrimmed>
