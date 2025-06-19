@@ -142,7 +142,7 @@ namespace SMBeagle.FileDiscovery
             {
                 OutputHelper.WriteLine($"\rEnumerating all subdirectories for '{dir.UNCPath}' - CTRL-BREAK or CTRL-PAUSE to SKIP                                 ", 1, false);
                 bool useCross = _localScan ? false : crossPlatform;
-                dir.FindDirectoriesRecursively(crossPlatform: useCross, ref abort);
+                dir.FindDirectoriesRecursively(crossPlatform: useCross, ref abort, verbose);
                 abort = false;
             }
 
@@ -225,6 +225,7 @@ namespace SMBeagle.FileDiscovery
         private List<Directory> GetLocalPathDirectories(List<string> localPaths, bool verbose = false)
         {
             var directories = new List<Directory>();
+            var validatedPaths = new List<string>();
             var dummyHost = new HostDiscovery.Host("localhost");
             var dummyShare = new ShareDiscovery.Share(dummyHost, "LOCAL_SCAN", Enums.ShareTypeEnum.DISK);
 
@@ -232,23 +233,45 @@ namespace SMBeagle.FileDiscovery
             {
                 try
                 {
-                    if (!System.IO.Directory.Exists(path))
+                    string fullPath = System.IO.Path.GetFullPath(path);
+                    if (!System.IO.Directory.Exists(fullPath))
                     {
-                        OutputHelper.WriteLine($"ERROR: Directory not found: {path}", 1);
+                        OutputHelper.WriteLine($"ERROR: Directory not found: {fullPath}", 1);
                         continue;
                     }
-                    directories.Add(new Directory(path: path, share: dummyShare)
+                    try { System.IO.Directory.GetDirectories(fullPath); }
+                    catch (UnauthorizedAccessException)
                     {
-                        DirectoryType = Enums.DirectoryTypeEnum.LOCAL_FIXED
-                    });
+                        OutputHelper.WriteLine($"ERROR: Access denied to directory: {fullPath}", 1);
+                        continue;
+                    }
+                    validatedPaths.Add(fullPath);
                     if (verbose)
-                        OutputHelper.WriteLine($"Added local directory for scanning: {path}", 1);
+                        OutputHelper.WriteLine($"[LOCAL-VALIDATION] Valid path added: {fullPath}", 2);
                 }
                 catch (Exception ex)
                 {
-                    OutputHelper.WriteLine($"ERROR: Cannot process path {path}: {ex.Message}", 1);
+                    OutputHelper.WriteLine($"ERROR: Cannot process path '{path}': {ex.Message}", 1);
                 }
             }
+
+            if (validatedPaths.Count == 0)
+            {
+                OutputHelper.WriteLine("ERROR: No valid local paths found. Exiting local scan.", 1);
+                return directories;
+            }
+
+            foreach (string validPath in validatedPaths)
+            {
+                directories.Add(new Directory(path: validPath, share: dummyShare)
+                {
+                    DirectoryType = Enums.DirectoryTypeEnum.LOCAL_FIXED
+                });
+            }
+
+            if (verbose)
+                OutputHelper.WriteLine($"[LOCAL-VALIDATION] Created {directories.Count} directory objects for scanning", 1);
+
             return directories;
         }
 

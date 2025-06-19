@@ -221,17 +221,23 @@ namespace SMBeagle.FileDiscovery
             try
             {
                 FileInfo[] files = new DirectoryInfo(UNCPath).GetFiles("*.*");
-                if (verbose && includeAccessTime)
-                    OutputHelper.WriteLine($"Collecting access times for {files.Length} files", 2);
+                if (verbose)
+                {
+                    OutputHelper.WriteLine($"[LOCAL-SCAN] Processing directory: {UNCPath} ({files.Length} files)",2);
+                    if (includeAccessTime)
+                        OutputHelper.WriteLine($"[LOCAL-SCAN] Collecting access times",2);
+                }
                 foreach (FileInfo file in files)
                 {
                     if (extensionsToIgnore?.Contains(file.Extension.ToLower()) == true)
                         continue;
                     string owner = string.Empty;
                     if (includeFileOwner)
-                        owner = LocalHelper.GetFileOwner(file.FullName);
-                    string fastHash = includeFastHash ? LocalHelper.ComputeFastHash(file.FullName) : string.Empty;
-                    string fileSignature = includeFileSignature ? LocalHelper.DetectFileSignature(file.FullName) : string.Empty;
+                        owner = LocalHelper.GetFileOwner(file.FullName, verbose);
+                    string fastHash = includeFastHash ? LocalHelper.ComputeFastHash(file.FullName, verbose) : string.Empty;
+                    string fileSignature = includeFileSignature ? LocalHelper.DetectFileSignature(file.FullName, verbose) : string.Empty;
+                    if (verbose)
+                        OutputHelper.WriteLine($"[LOCAL-FILE] Processing: {file.Name} (Size: {file.Length}, Owner: {owner})",3);
                     Files.Add(
                         new File(
                             parentDirectory: this,
@@ -250,7 +256,11 @@ namespace SMBeagle.FileDiscovery
                     );
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                if (verbose)
+                    OutputHelper.WriteLine($"[LOCAL-SCAN] Error enumerating files in {UNCPath}: {ex.Message}",2);
+            }
         }
         public void Clear()
         {
@@ -269,15 +279,23 @@ namespace SMBeagle.FileDiscovery
             catch { }
         }
 
-        private void FindDirectoriesLocal()
+        private void FindDirectoriesLocal(bool verbose = false)
         {
             try
             {
                 DirectoryInfo[] subDirs = new DirectoryInfo(UNCPath).GetDirectories();
                 foreach (DirectoryInfo di in subDirs)
+                {
                     ChildDirectories.Add(new Directory(path: di.FullName, share: Share) { Parent = this });
+                    if (verbose)
+                        OutputHelper.WriteLine($"[LOCAL-SCAN] Found subdirectory: {di.FullName}",3);
+                }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                if (verbose)
+                    OutputHelper.WriteLine($"[LOCAL-SCAN] Error enumerating directories in {UNCPath}: {ex.Message}",2);
+            }
         }
         private void FindDirectoriesCrossPlatform()
         {
@@ -332,11 +350,11 @@ namespace SMBeagle.FileDiscovery
                 //TODO: Implement better error handling here, one explosion should not wipe out the whole enumeration
             }
         }
-        public void FindDirectoriesRecursively(bool crossPlatform, ref bool abort)
+        public void FindDirectoriesRecursively(bool crossPlatform, ref bool abort, bool verbose = false)
         {
             bool local = Share != null && Share.Name == "LOCAL_SCAN";
             if (local)
-                FindDirectoriesLocal();
+                FindDirectoriesLocal(verbose);
             else if (crossPlatform)
                 FindDirectoriesCrossPlatform();
             else
@@ -345,7 +363,7 @@ namespace SMBeagle.FileDiscovery
             {
                 if (abort)
                     return;
-                dir.FindDirectoriesRecursively(crossPlatform, ref abort);
+                dir.FindDirectoriesRecursively(crossPlatform, ref abort, verbose);
             }
         }
 
