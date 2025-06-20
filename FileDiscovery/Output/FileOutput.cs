@@ -30,10 +30,12 @@ namespace SMBeagle.FileDiscovery.Output
         public string FileSignature { get; set; }
         public FileOutput(File file)
         {
-            Name = file.Name.ToLower();
+            // Preserve original case for filename in CSV output
+            Name = file.Name;
             Host = file.ParentDirectory.Share.Host.Address;
             Extension = file.Extension.TrimStart('.').ToLower();
-            UNCDirectory = file.ParentDirectory.UNCPath.ToLower();
+            // Preserve original case for UNC path in CSV output
+            UNCDirectory = file.ParentDirectory.UNCPath;
             CreationTime = file.CreationTime;
             LastWriteTime = file.LastWriteTime;
             Readable = file.Readable;

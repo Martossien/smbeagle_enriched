@@ -23,7 +23,8 @@ namespace SMBeagle.ShareDiscovery
         {
             get
             {
-                return $@"\\{Host.Address}\{Name}\".ToLower();
+                // Preserve original case for UNC share path
+                return $@"\\{Host.Address}\{Name}\";
             }
         }
     }
