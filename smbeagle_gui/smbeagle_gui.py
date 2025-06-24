@@ -40,12 +40,42 @@ class SMBeagleGUI:
         self.verbose_var = tk.BooleanVar()
 
         self.metadata_options = {
-            'sizefile': {'var': tk.BooleanVar(), 'icon': '\U0001F4CF', 'desc': 'Collect file sizes in bytes'},
-            'access_time': {'var': tk.BooleanVar(), 'icon': '\u23F0', 'desc': 'Collect last access timestamps'},
-            'fileattributes': {'var': tk.BooleanVar(), 'icon': '\U0001F3F7\uFE0F', 'desc': 'Collect system attributes'},
-            'ownerfile': {'var': tk.BooleanVar(), 'icon': '\U0001F464', 'desc': 'Collect file ownership'},
-            'fasthash': {'var': tk.BooleanVar(), 'icon': '\u0023\uFE0F\u20E3', 'desc': 'Generate xxHash64 checksums'},
-            'file_signature': {'var': tk.BooleanVar(), 'icon': '\U0001F50D', 'desc': 'Detect file types (magic)'}
+            'sizefile': {
+                'var': tk.BooleanVar(),
+                'icon': '\U0001F4CF',
+                'desc': 'Collect file sizes in bytes',
+                'cli': 'sizefile'
+            },
+            'access_time': {
+                'var': tk.BooleanVar(),
+                'icon': '\u23F0',
+                'desc': 'Collect last access timestamps',
+                'cli': 'access_time'
+            },
+            'fileattributes': {
+                'var': tk.BooleanVar(),
+                'icon': '\U0001F3F7\uFE0F',
+                'desc': 'Collect system attributes',
+                'cli': 'fileattributes'
+            },
+            'ownerfile': {
+                'var': tk.BooleanVar(),
+                'icon': '\U0001F464',
+                'desc': 'Collect file ownership',
+                'cli': 'ownerfile'
+            },
+            'fasthash': {
+                'var': tk.BooleanVar(),
+                'icon': '\u0023\uFE0F\u20E3',
+                'desc': 'Generate xxHash64 checksums',
+                'cli': 'fasthash'
+            },
+            'file_signature': {
+                'var': tk.BooleanVar(),
+                'icon': '\U0001F50D',
+                'desc': 'Detect file types (magic)',
+                'cli': 'file-signature'
+            }
         }
 
         self.command_var = tk.StringVar()
@@ -75,7 +105,13 @@ class SMBeagleGUI:
         # metadata grid 2x3
         row = col = 0
         for key, cfg in self.metadata_options.items():
-            cb = ttk.Checkbutton(frm_meta, text=f"{cfg['icon']} --{key}", variable=cfg['var'], command=self.update_command_preview)
+            cli_opt = cfg.get('cli', key)
+            cb = ttk.Checkbutton(
+                frm_meta,
+                text=f"{cfg['icon']} --{cli_opt}",
+                variable=cfg['var'],
+                command=self.update_command_preview
+            )
             cb.grid(row=row, column=col, sticky='w', padx=5, pady=5)
             self.create_tooltip(cb, TOOLTIPS.get(key, cfg['desc']))
             col += 1
@@ -200,7 +236,8 @@ class SMBeagleGUI:
             parts.append('--network')
         for key, cfg in self.metadata_options.items():
             if cfg['var'].get():
-                parts.append(f'--{key}')
+                cli_opt = cfg.get('cli', key)
+                parts.append(f'--{cli_opt}')
         if self.csv_file_var.get():
             parts.extend(['-c', f'"{self.csv_file_var.get()}"'])
         if self.elasticsearch_var.get():
