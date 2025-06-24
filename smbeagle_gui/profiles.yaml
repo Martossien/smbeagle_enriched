@@ -1,0 +1,21 @@
+Audit Complete:
+  local_path: true
+  sizefile: true
+  access_time: true
+  fileattributes: true
+  ownerfile: true
+  fasthash: true
+  file_signature: true
+Quick Scan:
+  local_path: true
+  sizefile: true
+  access_time: true
+Forensic Deep:
+  local_path: true
+  sizefile: true
+  access_time: true
+  fileattributes: true
+  ownerfile: true
+  fasthash: true
+  file_signature: true
+  verbose: true
