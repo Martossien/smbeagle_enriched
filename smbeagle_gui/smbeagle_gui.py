@@ -48,6 +48,11 @@ class SMBeagleGUI:
             'file_signature': {'var': tk.BooleanVar(), 'icon': '\U0001F50D', 'desc': 'Detect file types (magic)'}
         }
 
+        # Mapping between internal keys and CLI options
+        self.cli_option_mapping = {
+            'file_signature': 'file-signature'
+        }
+
         self.command_var = tk.StringVar()
 
         self.setup_ui()
@@ -75,7 +80,13 @@ class SMBeagleGUI:
         # metadata grid 2x3
         row = col = 0
         for key, cfg in self.metadata_options.items():
-            cb = ttk.Checkbutton(frm_meta, text=f"{cfg['icon']} --{key}", variable=cfg['var'], command=self.update_command_preview)
+            display_key = self.cli_option_mapping.get(key, key)
+            cb = ttk.Checkbutton(
+                frm_meta,
+                text=f"{cfg['icon']} --{display_key}",
+                variable=cfg['var'],
+                command=self.update_command_preview,
+            )
             cb.grid(row=row, column=col, sticky='w', padx=5, pady=5)
             self.create_tooltip(cb, TOOLTIPS.get(key, cfg['desc']))
             col += 1
@@ -200,7 +211,8 @@ class SMBeagleGUI:
             parts.append('--network')
         for key, cfg in self.metadata_options.items():
             if cfg['var'].get():
-                parts.append(f'--{key}')
+                option = self.cli_option_mapping.get(key, key)
+                parts.append(f'--{option}')
         if self.csv_file_var.get():
             parts.extend(['-c', f'"{self.csv_file_var.get()}"'])
         if self.elasticsearch_var.get():
