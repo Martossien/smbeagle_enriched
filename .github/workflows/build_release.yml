@@ -1,8 +1,8 @@
-name: Publication d'une release sur nouveau tag
+name: Release sur tag v*
 on:
   push:
     tags:
-      - '*'
+      - 'v*'
 
 permissions:
   contents: write
@@ -20,9 +20,6 @@ jobs:
           - os: ubuntu-latest
             rid: linux-x64
             nom: linux_amd64
-          - os: ubuntu-latest
-            rid: linux-arm64
-            nom: linux_arm64
           - os: windows-latest
             rid: win-x64
             nom: win_x64
@@ -37,20 +34,39 @@ jobs:
         id: version
         shell: bash
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - name: Build Release sans avertissement
+        run: dotnet build SMBeagle.sln -c Release -warnaserror
       - name: Tests
-        run: dotnet test SMBeagle.sln -c Release
-      - name: Publier ${{ matrix.rid }}
+        run: dotnet test SMBeagle.sln -c Release --no-build
+      - name: Publier ${{ matrix.rid }} (SelfContained, fichier unique)
         run: dotnet publish SMBeagle.csproj -c Release --self-contained -r ${{ matrix.rid }} -o packages/${{ matrix.rid }} -p:PublishSingleFile=true -p:PublishTrimmed=false -p:InvariantGlobalization=true -p:DebugType=None -p:DebugSymbols=false -p:Version=${{ steps.version.outputs.version }}
+      - name: Fumée sur le binaire publié
+        shell: bash
+        run: |
+          set -e
+          bin=packages/${{ matrix.rid }}/SMBeagle
+          [ -f "$bin.exe" ] && bin="$bin.exe"
+          "$bin" --version
+          "$bin" --local-path tests/fixtures --sizefile --fasthash --file-signature -c fumee.csv -q
+          test "$(wc -l < fumee.csv)" -eq 8
       - name: Archive zip
         shell: bash
         run: |
           cd packages/${{ matrix.rid }}
+          zip="smbeagle_enriched_${{ steps.version.outputs.version }}_${{ matrix.nom }}.zip"
           if [ "$RUNNER_OS" = "Windows" ]; then
-            powershell -Command "Compress-Archive -Path SMBeagle.exe -DestinationPath smbeagle_${{ steps.version.outputs.version }}_${{ matrix.nom }}.zip"
+            powershell -Command "Compress-Archive -Path SMBeagle.exe -DestinationPath $zip"
           else
-            zip smbeagle_${{ steps.version.outputs.version }}_${{ matrix.nom }}.zip SMBeagle
+            zip "$zip" SMBeagle
           fi
+          ls -l "$zip"
+      - name: Déposer l'artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.nom }}
+          path: packages/${{ matrix.rid }}/smbeagle_enriched_*.zip
       - name: Attacher à la release GitHub
         uses: softprops/action-gh-release@v2
         with:
-          files: packages/${{ matrix.rid }}/smbeagle_${{ steps.version.outputs.version }}_${{ matrix.nom }}.zip
+          files: packages/${{ matrix.rid }}/smbeagle_enriched_${{ steps.version.outputs.version }}_${{ matrix.nom }}.zip
+          fail_on_unmatched_files: true
