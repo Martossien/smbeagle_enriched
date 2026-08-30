@@ -1,0 +1,83 @@
+using CommandLine;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text.Encodings.Web;
+using System.Text.Json;
+
+namespace SMBeagle.Output
+{
+    /// <summary>
+    /// Manifeste JSON écrit en fin de scan (--manifest) : version, horodatages,
+    /// options effectives, cibles, compteurs, chemin du CSV et liste des colonnes.
+    /// </summary>
+    public sealed class ScanManifest
+    {
+        static readonly JsonSerializerOptions _json = new()
+        {
+            WriteIndented = true,
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        };
+
+        public DateTimeOffset StartedAt { get; } = DateTimeOffset.Now;
+        public List<string> Targets { get; } = new();
+        public long Hosts { get; set; }
+        public long Shares { get; set; }
+        public long Files { get; set; }
+        public string Csv { get; set; }
+
+        /// <summary>Version de l'exécutable (Major.Minor.Build).</summary>
+        public static string Version
+        {
+            get
+            {
+                Version v = Assembly.GetEntryAssembly()?.GetName().Version ?? new Version(0, 0, 0);
+                return $"{v.Major}.{v.Minor}.{v.Build}";
+            }
+        }
+
+        /// <summary>
+        /// Toutes les options de la ligne de commande, clé = nom long, valeur
+        /// effective (défauts compris). Le mot de passe est masqué.
+        /// </summary>
+        public static Dictionary<string, object> DescribeOptions(object options)
+        {
+            var result = new Dictionary<string, object>();
+            foreach (PropertyInfo prop in options.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                var attr = prop.GetCustomAttribute<OptionAttribute>();
+                if (attr == null)
+                    continue;
+                string key = string.IsNullOrEmpty(attr.LongName) ? prop.Name : attr.LongName;
+                object value = prop.GetValue(options);
+                if (key == "password" && value != null)
+                    value = "***";
+                else if (value is string s)
+                    value = s;
+                else if (value is IEnumerable seq)
+                    value = seq.Cast<object>().Select(o => o?.ToString()).ToList();
+                result[key] = value;
+            }
+            return result;
+        }
+
+        public void Write(string path, object options)
+        {
+            var manifest = new Dictionary<string, object>
+            {
+                ["version"] = Version,
+                ["started_at"] = StartedAt.ToString("o"),
+                ["finished_at"] = DateTimeOffset.Now.ToString("o"),
+                ["options"] = DescribeOptions(options),
+                ["targets"] = Targets,
+                ["counts"] = new Dictionary<string, long> { ["hosts"] = Hosts, ["shares"] = Shares, ["files"] = Files },
+                ["csv"] = Csv,
+                ["columns"] = FileDiscovery.Output.FileOutput.Columns,
+            };
+            File.WriteAllText(path, JsonSerializer.Serialize(manifest, _json) + Environment.NewLine);
+        }
+    }
+}

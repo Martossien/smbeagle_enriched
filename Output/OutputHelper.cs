@@ -38,6 +38,9 @@ namespace SMBeagle.Output
 
         static readonly CompactJsonFormatter _jsonFormatter = new(new JsonValueFormatter(null));
 
+        /// <summary>Destination des messages lisibles : stdout, ou stderr avec --progress-json.</summary>
+        static TextWriter Human { get; set; } = Console.Out;
+
         static string Hostname { get; set; }
 
         static string Username { get; set; }
@@ -74,10 +77,9 @@ namespace SMBeagle.Output
             {
                 System.IO.File.WriteAllText(path, string.Empty);
             }
-            catch
+            catch (Exception ex)
             {
-                Console.WriteLine("ERROR: Could not create CSV file");
-                Environment.Exit(1);
+                throw new IOException($"création du fichier CSV '{path}' impossible : {ex.Message}", ex);
             }
             CsvLogger = new LoggerConfiguration()
                 .WriteTo.File(new CSVFormatter(), path)
@@ -108,16 +110,22 @@ namespace SMBeagle.Output
 
         public static void ConsoleWriteLogo()
         {
-            Console.Write(LOGO);
+            Human.Write(LOGO);
+        }
+
+        /// <summary>Avec --progress-json, stdout est réservé aux lignes JSON.</summary>
+        public static void UseStderrForHumanOutput()
+        {
+            Human = Console.Error;
         }
 
         public static void WriteLine(string line, int indent = 0, bool newline = true)
         {
             string pad = new(' ', indent * 2);
             if (newline)
-                Console.WriteLine(pad + line);
+                Human.WriteLine(pad + line);
             else
-                Console.Write(pad + line);
+                Human.Write(pad + line);
         }
 
         /// <summary>Erreur non fatale, sur stderr (jamais dans le CSV ni sur stdout).</summary>

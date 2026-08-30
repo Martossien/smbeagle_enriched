@@ -1,4 +1,5 @@
 ﻿using SMBLibrary.Client;
+using SMBeagle.Output;
 using SMBLibrary;
 using System;
 using System.IO;
@@ -23,17 +24,14 @@ namespace SMBeagle.FileDiscovery
         {
             ACL acl = new();
             if (file.ParentDirectory.Share == null)
-            {
-                Console.WriteLine("ERROR: File does not have a parent share");
-                Environment.Exit(1);
-            }
+                throw new InvalidOperationException($"le fichier '{file.FullName}' n'a pas de partage parent");
             NTStatus status;
             //TODO: optimise storing filestore somewhere
             ISMBFileStore fileStore = file.ParentDirectory.Share.Host.Client.TreeConnect(file.ParentDirectory.Share.Name, out status);
 
             if (status != NTStatus.STATUS_SUCCESS)
             {
-                Console.WriteLine("ERROR: Could not connect to share");
+                OutputHelper.WriteError($"connexion au partage '{file.ParentDirectory.Share.uncPath}' impossible : {status}");
                 return acl;
             }
 
@@ -57,7 +55,7 @@ namespace SMBeagle.FileDiscovery
             ISMBFileStore fileStore = file.ParentDirectory.Share.Host.Client.TreeConnect(file.ParentDirectory.Share.Name, out status);
             if (status != NTStatus.STATUS_SUCCESS)
             {
-                Console.WriteLine("ERROR: Could not connect to share");
+                OutputHelper.WriteError($"connexion au partage '{file.ParentDirectory.Share.uncPath}' impossible : {status}");
                 return;
             }
 

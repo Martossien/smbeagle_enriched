@@ -17,52 +17,106 @@ namespace SMBeagle
     class Program
     {
         [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(Options))]
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
+            // Détecté avant l'analyse : une erreur d'arguments doit aussi sortir en JSON.
+            bool progressJson = args.Contains("--progress-json");
             var parser = new Parser(with => with.HelpWriter = null);
             var parserResult = parser.ParseArguments<Options>(args);
+            int code = ExitCodes.ArgumentError;
             parserResult
-                .WithParsed(Run)
-                .WithNotParsed(errs => OutputHelp(parserResult, errs));
+                .WithParsed(opts => code = SafeRun(opts))
+                .WithNotParsed(errs => code = OutputHelp(parserResult, errs, progressJson));
+            return code;
         }
 
-        static void Run(Options opts)
+        /// <summary>Exécute le scan ; toute exception devient un code 1 (et un événement JSON « error »).</summary>
+        static int SafeRun(Options opts)
         {
+            if (opts.ProgressJson)
+            {
+                OutputHelper.UseStderrForHumanOutput();
+                ProgressReporter.Current = new ProgressReporter(Console.Out);
+            }
+            try
+            {
+                return Run(opts);
+            }
+            catch (Exception ex)
+            {
+                OutputHelper.WriteError($"{ex.GetType().Name} : {ex.Message}");
+                ProgressReporter.Current?.Error(ex.Message);
+                return ExitCodes.RuntimeError;
+            }
+            finally
+            {
+                ProgressReporter.Current?.Dispose();
+                ProgressReporter.Current = null;
+            }
+        }
+
+        static int Fail(int code, string message)
+        {
+            OutputHelper.WriteLine(message);
+            ProgressReporter.Current?.Error(message);
+            return code;
+        }
+
+        /// <summary>Rien à scanner ou rien trouvé : fin de scan normale (manifeste, « done ») puis code 3.</summary>
+        static int NothingFound(Options opts, ScanManifest manifest, string message)
+        {
+            OutputHelper.WriteLine(message);
+            Finish(opts, manifest);
+            return ExitCodes.NothingFound;
+        }
+
+        /// <summary>Fin de scan commune : vidage des sorties, manifeste, événement « done ».</summary>
+        static int Finish(Options opts, ScanManifest manifest)
+        {
+            ProgressReporter.Current?.Stage(ProgressReporter.STAGE_WRITING);
+            OutputHelper.WriteLine("7. Completing the writes to CSV or elasticsearch (or both)");
+            OutputHelper.CloseAndFlush();
+            OutputHelper.WriteLine(" -- AUDIT COMPLETE --");
+            if (opts.ManifestPath != null)
+                manifest.Write(opts.ManifestPath, opts);
+            ProgressReporter.Current?.Done(manifest.Files, manifest.Csv);
+            return manifest.Files > 0 ? ExitCodes.Ok : ExitCodes.NothingFound;
+        }
+
+        static int Run(Options opts)
+        {
+            ScanManifest manifest = new();
+            if (opts.CsvFile != null)
+                manifest.Csv = System.IO.Path.GetFullPath(opts.CsvFile);
 
             if (!opts.Quiet)
                 OutputHelper.ConsoleWriteLogo();
             else
-                Console.WriteLine("SMBeagle by PunkSecurity [punksecurity.co.uk]");
+                OutputHelper.WriteLine("SMBeagle by PunkSecurity [punksecurity.co.uk]");
 
             bool localScan = opts.LocalPaths != null && opts.LocalPaths.Any();
 
             // Un scan --local-path ne parle pas SMB : pas d'identifiants requis, même hors Windows.
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && !localScan)
             {
-                // TODO: should we have an enum for exit codes?
                 if (opts.Username == null || opts.Password == null)
-                {
-                    OutputHelper.WriteLine("ERROR: Username and Password required on none Windows platforms");
-                    Environment.Exit(1);
-                }
+                    return Fail(ExitCodes.ArgumentError, "ERROR: Username and Password required on none Windows platforms");
             }
 
             if (opts.Username == null ^ opts.Password == null)
-            {
-                OutputHelper.WriteLine("ERROR: We need a username and password, not just one");
-                Environment.Exit(1);
-            }
+                return Fail(ExitCodes.ArgumentError, "ERROR: We need a username and password, not just one");
+
             bool crossPlatform = false;
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || opts.Username != null)
             {
                 crossPlatform = true;
                 // The library we use hangs when scanning ourselves
                 if (opts.ScanLocalShares)
-                {
-                    OutputHelper.WriteLine("ERROR: We cannot scan local shares when running on Linux or with commandline credentials");
-                    Environment.Exit(1);
-                }
+                    return Fail(ExitCodes.ArgumentError, "ERROR: We cannot scan local shares when running on Linux or with commandline credentials");
             }
+
+            if (opts.CsvFile == null && opts.ElasticsearchHost == null)
+                return Fail(ExitCodes.ArgumentError, "ERROR: an output is required (-c csv file and/or -e elasticsearch host)");
 
             String username = "";
             if (opts.Username != null)
@@ -79,6 +133,7 @@ namespace SMBeagle
             // Handle local path scanning
             if (localScan)
             {
+                ProgressReporter.Current?.Stage(ProgressReporter.STAGE_FILES);
                 OutputHelper.WriteLine("Performing local directory scan as --local-path is specified...");
                 if (opts.Networks.Any() || opts.Hosts.Any() || opts.ScanLocalShares)
                     OutputHelper.WriteLine("WARNING: --local-path is mutually exclusive with network options. Network options ignored.", 1);
@@ -91,13 +146,14 @@ namespace SMBeagle
                 }
 
                 FileFinder ffLocal = new(BuildScanOptions(opts, new List<Share>(), filePatterns, crossPlatform));
-
-                OutputHelper.WriteLine("7. Completing the writes to CSV or elasticsearch (or both)");
-                OutputHelper.CloseAndFlush();
-                OutputHelper.WriteLine(" -- AUDIT COMPLETE --");
-                return;
+                manifest.Targets.AddRange(ffLocal.Directories.Where(d => d.Parent == null).Select(d => d.Path));
+                manifest.Files = ffLocal.FileCount;
+                if (manifest.Targets.Count == 0)
+                    return NothingFound(opts, manifest, "ERROR: No valid local path to scan");
+                return Finish(opts, manifest);
             }
 
+            ProgressReporter.Current?.Stage(ProgressReporter.STAGE_DISCOVERY);
             NetworkFinder
                 nf = new();
 
@@ -211,11 +267,11 @@ namespace SMBeagle
                 OutputHelper.WriteLine("3. No manual networks or addresses provided, skipping...");
             }
 
+            manifest.Targets.AddRange(networks.Select(n => n.ToString()));
+            manifest.Targets.AddRange(addresses);
+
             if (addresses.Count == 0 && networks.Count == 0)
-            {
-                OutputHelper.WriteLine("After filtering - there are no networks or hosts to scan...");
-                Environment.Exit(0);
-            }
+                return NothingFound(opts, manifest, "After filtering - there are no networks or hosts to scan...");
 
             OutputHelper.WriteLine("4. Probing hosts and scanning networks for SMB port 445...");
 
@@ -226,12 +282,10 @@ namespace SMBeagle
                 hf = new(addresses, networks, filteredAddresses);
 
             OutputHelper.WriteLine($"scanning is complete and we have {hf.ReachableHosts.Count} hosts with reachable SMB services", 1);
+            ProgressReporter.Current?.Counts(hosts: hf.ReachableHosts.Count);
 
             if (hf.ReachableHosts.Count == 0)
-            {
-                OutputHelper.WriteLine("There are no hosts with accessible SMB services...");
-                Environment.Exit(0);
-            }
+                return NothingFound(opts, manifest, "There are no hosts with accessible SMB services...");
 
             if (opts.Verbose)
             {
@@ -241,6 +295,7 @@ namespace SMBeagle
             }
 
             OutputHelper.WriteLine("5. Probing SMB services for accessible shares...");
+            ProgressReporter.Current?.Stage(ProgressReporter.STAGE_SHARES);
 
             if (crossPlatform)
             {
@@ -265,12 +320,11 @@ namespace SMBeagle
             }
 
             OutputHelper.WriteLine($"probing is complete and we have {hf.HostsWithShares.Count} hosts with accessible shares", 1);
+            manifest.Hosts = hf.HostsWithShares.Count;
+            ProgressReporter.Current?.Counts(hosts: hf.HostsWithShares.Count);
 
             if (hf.HostsWithShares.Count == 0)
-            {
-                OutputHelper.WriteLine("There are no hosts with accessible SMB shares.  Exiting...");
-                Environment.Exit(0);
-            }
+                return NothingFound(opts, manifest, "There are no hosts with accessible SMB shares.  Exiting...");
 
             if (!opts.Quiet)
             {
@@ -318,11 +372,11 @@ namespace SMBeagle
                     .ToList();
             }
 
+            manifest.Shares = shares.Count;
+            ProgressReporter.Current?.Counts(shares: shares.Count);
+
             if (!shares.Any())
-            {
-                OutputHelper.WriteLine("There are no accessible SMB shares to scan.  Exiting...");
-                Environment.Exit(0);
-            }
+                return NothingFound(opts, manifest, "There are no accessible SMB shares to scan.  Exiting...");
 
             if (opts.Verbose)
             {
@@ -332,6 +386,7 @@ namespace SMBeagle
             }
 
             OutputHelper.WriteLine("6. Enumerating accessible shares, this can be slow...");
+            ProgressReporter.Current?.Stage(ProgressReporter.STAGE_FILES);
 
             List<String> networkFilePatterns = new List<string> { ".*(password|config|credentials|creds).*", ".*(ps1|bat|vbs|sh|cmd)$" };
 
@@ -352,14 +407,9 @@ namespace SMBeagle
 
             // Find files on all the shares
             FileFinder ff = new(BuildScanOptions(opts, shares, networkFilePatterns, crossPlatform));
+            manifest.Files = ff.FileCount;
 
-            OutputHelper.WriteLine("7. Completing the writes to CSV or elasticsearch (or both)");
-
-            OutputHelper.CloseAndFlush();
-
-            OutputHelper.WriteLine(" -- AUDIT COMPLETE --");
-
-
+            return Finish(opts, manifest);
             // TODO: know when elasticsearch sink has finished outputting
         }
 
@@ -384,12 +434,14 @@ namespace SMBeagle
                 IncludeFileOwner = opts.OwnerFile,
                 IncludeFastHash = opts.FastHash,
                 IncludeFileSignature = opts.FileSignature,
+                PreserveAccessTime = opts.PreserveAccessTime,
             };
         }
 
-        static void OutputHelp<T>(ParserResult<T> result, IEnumerable<Error> errs)
+        /// <summary>Aide ou erreur d'arguments : 0 si l'aide/version était demandée, 2 sinon.</summary>
+        static int OutputHelp<T>(ParserResult<T> result, IEnumerable<Error> errs, bool progressJson)
         {
-            OutputHelper.ConsoleWriteLogo();
+            bool requested = errs.Any(e => e.Tag == ErrorType.HelpRequestedError || e.Tag == ErrorType.VersionRequestedError || e.Tag == ErrorType.HelpVerbRequestedError);
             HelpText helpText = HelpText.AutoBuild(result, h =>
             {
                 //configure help
@@ -398,23 +450,16 @@ namespace SMBeagle
                 h.Copyright = "Apache License 2.0";
                 return HelpText.DefaultParsingErrorsHandler(result, h);
             }, e => e);
-            Console.WriteLine(helpText);
-        }
-
-        static void OutputHelp(Exception err)
-        {
-            string pad = new('-', err.Message.Length / 2);
+            if (progressJson && !requested)
+            {
+                OutputHelper.UseStderrForHumanOutput();
+                using ProgressReporter reporter = new(Console.Out);
+                reporter.Error("arguments invalides : " + string.Join(" ; ", errs.Select(e => e.Tag.ToString())));
+            }
             OutputHelper.ConsoleWriteLogo();
-            Console.WriteLine($"!{pad} ERROR {pad}!");
-            Console.WriteLine("");
-            Console.WriteLine("    " + err.Message);
-            Console.WriteLine("");
-            Console.WriteLine("    For help use --help");
-            Console.WriteLine("");
-            Console.WriteLine($"!{pad} ERROR {pad}!");
-            System.Environment.Exit(1);
+            OutputHelper.WriteLine(helpText);
+            return requested ? ExitCodes.Ok : ExitCodes.ArgumentError;
         }
-
 
         #region Classes
 
@@ -509,6 +554,15 @@ namespace SMBeagle
             [Option("file-signature", Required = false, HelpText = "Detect file type by magic bytes")]
             public bool FileSignature { get; set; }
 
+            [Option("preserve-access-time", Required = false, HelpText = "Restore each file's last access time after reading it (--fasthash / --file-signature)")]
+            public bool PreserveAccessTime { get; set; }
+
+            [Option("progress-json", Required = false, HelpText = "Emit one JSON progress line on stdout every ~2s and per stage (human output goes to stderr)")]
+            public bool ProgressJson { get; set; }
+
+            [Option("manifest", Required = false, HelpText = "Write a JSON manifest of the scan (options, targets, counts, columns) to this path")]
+            public string ManifestPath { get; set; }
+
             [Usage(ApplicationAlias = "SMBeagle")]
             public static IEnumerable<Example> Examples
             {
@@ -528,6 +582,7 @@ namespace SMBeagle
                     yield return new Example("Collect fast hash metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", FastHash = true });
                     yield return new Example("Collect file signature metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", FileSignature = true });
                     yield return new Example("Scan local directory", unParserSettings, new Options { LocalPaths = new List<string> { "/tmp" } });
+                    yield return new Example("Driven by docia (JSON progress, manifest, access times preserved)", unParserSettings, new Options { LocalPaths = new List<string> { @"D:\partage" }, CsvFile = "scan.csv", SizeFile = true, AccessTime = true, FileAttributes = true, OwnerFile = true, FastHash = true, FileSignature = true, PreserveAccessTime = true, ProgressJson = true, ManifestPath = "scan.json" });
                 }
             }
         }

@@ -117,12 +117,13 @@ namespace SMBeagle.FileDiscovery
                 {
                     e.Cancel = true;
                     abort = true;
-                    Console.WriteLine("\nSKIPPING");
+                    OutputHelper.WriteLine("\nSKIPPING");
                 }
                 else
                 {
-                    Console.WriteLine("\nABORTED EXECUTION... Did you mean CTRL-BREAK?");
-                    Environment.Exit(0);
+                    OutputHelper.WriteLine("\nABORTED EXECUTION... Did you mean CTRL-BREAK?");
+                    ProgressReporter.Current?.Error("interrompu par l'utilisateur (CTRL-C)");
+                    Environment.Exit(ExitCodes.RuntimeError);
                 }
             };
 
@@ -180,6 +181,7 @@ namespace SMBeagle.FileDiscovery
                         }
 
                         OutputHelper.AddPayload(new Output.FileOutput(file), Enums.OutputtersEnum.File);
+                        ProgressReporter.Current?.Files(FilesSentForOutput.Count);
 
                         if (opts.FetchFiles && opts.FilePatterns.Any(pattern => Regex.IsMatch(file.Name, pattern, RegexOptions.IgnoreCase)))
                         {
@@ -200,7 +202,12 @@ namespace SMBeagle.FileDiscovery
             Console.CancelKeyPress -= handler;
             if (!opts.Quiet)
                 OutputHelper.WriteLine($"\r  file enumeration complete, {FilesSentForOutput.Count} files identified                ");
+            if (opts.PreserveAccessTime && ContentProbe.AccessTimeRestoreFailures > 0)
+                OutputHelper.WriteError($"date d'accès non restaurée pour {ContentProbe.AccessTimeRestoreFailures} fichier(s) (droits insuffisants ; -v pour le détail)");
         }
+
+        /// <summary>Nombre de fichiers envoyés en sortie (dédoublonnés).</summary>
+        public int FileCount => FilesSentForOutput.Count;
 
         private Enums.DirectoryTypeEnum DriveInfoTypeToDirectoryTypeEnum(DriveType type)
         {
