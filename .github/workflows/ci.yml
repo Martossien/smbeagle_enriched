@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  DOTNET_NOLOGO: 1
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            artefact: linux-x64
+          - os: windows-latest
+            rid: win-x64
+            artefact: windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Restaurer
+        run: dotnet restore SMBeagle.sln
+      - name: Build Release sans avertissement
+        run: dotnet build SMBeagle.sln -c Release --no-restore -warnaserror
+      - name: Vérifier le format
+        run: dotnet format SMBeagle.sln --verify-no-changes --no-restore
+      - name: Tests
+        run: dotnet test SMBeagle.sln -c Release --no-build --logger "console;verbosity=normal"
+      - name: Publier ${{ matrix.rid }} (SelfContained, fichier unique)
+        run: dotnet publish SMBeagle.csproj -c Release --self-contained -r ${{ matrix.rid }} -o packages/${{ matrix.rid }} -p:PublishSingleFile=true -p:PublishTrimmed=false -p:InvariantGlobalization=true -p:DebugType=None -p:DebugSymbols=false
+      - name: Fumée sur le binaire publié
+        shell: bash
+        run: |
+          set -e
+          bin=packages/${{ matrix.rid }}/SMBeagle
+          [ -f "$bin.exe" ] && bin="$bin.exe"
+          "$bin" --local-path tests/fixtures --sizefile --fasthash --file-signature -c fumee.csv -q
+          head -1 fumee.csv
+          test "$(wc -l < fumee.csv)" -gt 1
+      - name: Déposer l'artefact ${{ matrix.artefact }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artefact }}
+          path: packages/${{ matrix.rid }}/*
