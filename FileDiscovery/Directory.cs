@@ -27,10 +27,12 @@ namespace SMBeagle.FileDiscovery
             }
         }
         //todo: replace Base and Type with direct copy from parent then drop the ref
-        #nullable enable
+#nullable enable
         public Directory? Parent { get; set; } = null;
-        #nullable disable
-        public Directory Base { get
+#nullable disable
+        public Directory Base
+        {
+            get
             {
                 if (Parent == null)
                     return this;
@@ -50,14 +52,14 @@ namespace SMBeagle.FileDiscovery
         private List<File> GetRecursiveFiles(HashSet<string> visitedPaths)
         {
             List<File> ret = new List<File>();
-            
+
             // Prevent circular references
             string currentPath = UNCPath?.ToLower() ?? Path?.ToLower() ?? "";
             if (visitedPaths.Contains(currentPath))
                 return ret;
-                
+
             visitedPaths.Add(currentPath);
-            
+
             ret.AddRange(Files);
             foreach (Directory dir in ChildDirectories)
             {
@@ -77,14 +79,14 @@ namespace SMBeagle.FileDiscovery
         private List<Directory> GetRecursiveChildDirectories(HashSet<string> visitedPaths)
         {
             List<Directory> ret = new List<Directory>();
-            
+
             // Prevent circular references
             string currentPath = UNCPath?.ToLower() ?? Path?.ToLower() ?? "";
             if (visitedPaths.Contains(currentPath))
                 return ret;
-                
+
             visitedPaths.Add(currentPath);
-            
+
             ret.AddRange(ChildDirectories);
             foreach (Directory dir in ChildDirectories)
             {
@@ -136,7 +138,7 @@ namespace SMBeagle.FileDiscovery
                     );
                 }
             }
-            catch  {            }
+            catch { }
         }
         public void FindFilesCrossPlatform(List<string> extensionsToIgnore = null, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, bool verbose = false)
         {
@@ -165,7 +167,7 @@ namespace SMBeagle.FileDiscovery
                                     if (f.FileInformationClass == FileInformationClass.FileDirectoryInformation)
                                     {
                                         FileDirectoryInformation d = (FileDirectoryInformation)f;
-                                        if (! d.FileAttributes.HasFlag(SMBLibrary.FileAttributes.Directory))
+                                        if (!d.FileAttributes.HasFlag(SMBLibrary.FileAttributes.Directory))
                                         {
                                             string extension = d.FileName.Substring(d.FileName.LastIndexOf('.') + 1);
                                             string path;
@@ -210,7 +212,7 @@ namespace SMBeagle.FileDiscovery
                     }
                 }
             }
-            catch 
+            catch
             {
                 //TODO: Implement better error handling here, one explosion should not wipe out the whole enumeration
             }
@@ -223,9 +225,9 @@ namespace SMBeagle.FileDiscovery
                 FileInfo[] files = new DirectoryInfo(UNCPath).GetFiles("*.*");
                 if (verbose)
                 {
-                    OutputHelper.WriteLine($"[LOCAL-SCAN] Processing directory: {UNCPath} ({files.Length} files)",2);
+                    OutputHelper.WriteLine($"[LOCAL-SCAN] Processing directory: {UNCPath} ({files.Length} files)", 2);
                     if (includeAccessTime)
-                        OutputHelper.WriteLine($"[LOCAL-SCAN] Collecting access times",2);
+                        OutputHelper.WriteLine($"[LOCAL-SCAN] Collecting access times", 2);
                 }
                 foreach (FileInfo file in files)
                 {
@@ -237,7 +239,7 @@ namespace SMBeagle.FileDiscovery
                     string fastHash = includeFastHash ? LocalHelper.ComputeFastHash(file.FullName, verbose) : string.Empty;
                     string fileSignature = includeFileSignature ? LocalHelper.DetectFileSignature(file.FullName, verbose) : string.Empty;
                     if (verbose)
-                        OutputHelper.WriteLine($"[LOCAL-FILE] Processing: {file.Name} (Size: {file.Length}, Owner: {owner})",3);
+                        OutputHelper.WriteLine($"[LOCAL-FILE] Processing: {file.Name} (Size: {file.Length}, Owner: {owner})", 3);
                     Files.Add(
                         new File(
                             parentDirectory: this,
@@ -259,7 +261,7 @@ namespace SMBeagle.FileDiscovery
             catch (Exception ex)
             {
                 if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-SCAN] Error enumerating files in {UNCPath}: {ex.Message}",2);
+                    OutputHelper.WriteLine($"[LOCAL-SCAN] Error enumerating files in {UNCPath}: {ex.Message}", 2);
             }
         }
         public void Clear()
@@ -274,7 +276,7 @@ namespace SMBeagle.FileDiscovery
             {
                 DirectoryInfo[] subDirs = new DirectoryInfo(UNCPath).GetDirectories();
                 foreach (DirectoryInfo di in subDirs)
-                    ChildDirectories.Add(new Directory(path: di.FullName, share: Share) { Parent = this});
+                    ChildDirectories.Add(new Directory(path: di.FullName, share: Share) { Parent = this });
             }
             catch { }
         }
@@ -288,13 +290,13 @@ namespace SMBeagle.FileDiscovery
                 {
                     ChildDirectories.Add(new Directory(path: di.FullName, share: Share) { Parent = this });
                     if (verbose)
-                        OutputHelper.WriteLine($"[LOCAL-SCAN] Found subdirectory: {di.FullName}",3);
+                        OutputHelper.WriteLine($"[LOCAL-SCAN] Found subdirectory: {di.FullName}", 3);
                 }
             }
             catch (Exception ex)
             {
                 if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-SCAN] Error enumerating directories in {UNCPath}: {ex.Message}",2);
+                    OutputHelper.WriteLine($"[LOCAL-SCAN] Error enumerating directories in {UNCPath}: {ex.Message}", 2);
             }
         }
         private void FindDirectoriesCrossPlatform()
@@ -321,7 +323,7 @@ namespace SMBeagle.FileDiscovery
                                 {
                                     if (f.FileInformationClass == FileInformationClass.FileDirectoryInformation)
                                     {
-                                        FileDirectoryInformation d = (FileDirectoryInformation) f;
+                                        FileDirectoryInformation d = (FileDirectoryInformation)f;
                                         if (d.FileAttributes.HasFlag(SMBLibrary.FileAttributes.Directory) && d.FileName != "." && d.FileName != "..")
                                         {
                                             string path = "";
@@ -343,9 +345,9 @@ namespace SMBeagle.FileDiscovery
                     {
                         fileStore.Disconnect();
                     }
-                } 
+                }
             }
-            catch 
+            catch
             {
                 //TODO: Implement better error handling here, one explosion should not wipe out the whole enumeration
             }

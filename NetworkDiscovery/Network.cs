@@ -21,7 +21,9 @@ namespace SMBeagle.NetworkDiscovery
         private IPNetwork2 _Net { get; set; }
         public bool IsPrivate { get { return _IsPrivate; } }
         private bool _IsPrivate { get; set; } = false;
-        public int IPVersion { get
+        public int IPVersion
+        {
+            get
             {
                 if (Address.Contains(":"))
                     return 6;
@@ -64,7 +66,8 @@ namespace SMBeagle.NetworkDiscovery
             return Value;
         }
 
-        public List<string> AddressList {
+        public List<string> AddressList
+        {
             get
             {
                 List<string> addresses = new List<string>();
@@ -75,7 +78,7 @@ namespace SMBeagle.NetworkDiscovery
                 return addresses;
 
             }
-            }
+        }
 
         public NetworkDiscoverySourceEnum Source { get; }
         public Network(string cidr, NetworkDiscoverySourceEnum source)
@@ -86,7 +89,7 @@ namespace SMBeagle.NetworkDiscovery
             foreach (string name in _PrivateNetworks.Keys)
             {
                 if (_PrivateNetworks[name].Contains(_Net))
-                    {
+                {
                     _IsPrivate = true;
                 }
             }

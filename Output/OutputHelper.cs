@@ -66,7 +66,7 @@ namespace SMBeagle.Output
                 .CreateLogger();
         }
 
-        public static void EnableCSVLogging(string path, string username="")
+        public static void EnableCSVLogging(string path, string username = "")
         {
             SetUsernameAndHostname(username);
             try
@@ -90,7 +90,7 @@ namespace SMBeagle.Output
                 Log.Logger = ElasticsearchLogger;
                 Log.CloseAndFlush();
             }
-            
+
             if (CsvLogger != null)
             {
                 Log.Logger = CsvLogger;
@@ -157,7 +157,7 @@ namespace SMBeagle.Output
         const char CSV_SEPERATOR = ',';
 
         #endregion
-        
+
         #region Static
 
         private static bool _headersWritten = false;
@@ -173,7 +173,7 @@ namespace SMBeagle.Output
                 var properties = ((Serilog.Events.StructureValue)logEvent.Properties["File"]).Properties;
                 if (!_headersWritten)
                 {
-                    for(int i=0; i<properties.Count; i++)
+                    for (int i = 0; i < properties.Count; i++)
                     {
                         output.Write(properties[i].Name);
 

@@ -139,7 +139,7 @@ namespace SMBeagle.FileDiscovery
 
 
         [DllImport("authz.dll", EntryPoint = "AuthzFreeResourceManager", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
-        private static extern bool AuthzFreeResourceManager( IntPtr hAuthzResourceManager );
+        private static extern bool AuthzFreeResourceManager(IntPtr hAuthzResourceManager);
 
 
         enum ACCESS_MASK : uint
@@ -223,16 +223,16 @@ namespace SMBeagle.FileDiscovery
             return pClientContext;
         }
 
-    public static ACL ResolvePermissions(string path, IntPtr pClientContext)
-    {
+        public static ACL ResolvePermissions(string path, IntPtr pClientContext)
+        {
 
-        ACL acl = new ACL() { Readable = false, Writeable = false, Deletable = false };
-        IntPtr pSidOwner, pSidGroup, pDacl, pSacl, pSecurityDescriptor;
+            ACL acl = new ACL() { Readable = false, Writeable = false, Deletable = false };
+            IntPtr pSidOwner, pSidGroup, pDacl, pSacl, pSecurityDescriptor;
 
-        uint ret = GetNamedSecurityInfo(path,
-            SE_OBJECT_TYPE.SE_FILE_OBJECT,
-            SECURITY_INFORMATION.DACL_SECURITY_INFORMATION | SECURITY_INFORMATION.OWNER_SECURITY_INFORMATION | SECURITY_INFORMATION.GROUP_SECURITY_INFORMATION,
-            out pSidOwner, out pSidGroup, out pDacl, out pSacl, out pSecurityDescriptor);
+            uint ret = GetNamedSecurityInfo(path,
+                SE_OBJECT_TYPE.SE_FILE_OBJECT,
+                SECURITY_INFORMATION.DACL_SECURITY_INFORMATION | SECURITY_INFORMATION.OWNER_SECURITY_INFORMATION | SECURITY_INFORMATION.GROUP_SECURITY_INFORMATION,
+                out pSidOwner, out pSidGroup, out pDacl, out pSacl, out pSecurityDescriptor);
 
 
 
@@ -266,184 +266,184 @@ namespace SMBeagle.FileDiscovery
             FreePointerH(reply.GrantedAccessMask);
             FreePointerH(reply.SaclEvaluationResults);
             FreePointerH(reply.Error);
-        FreePointerC(pSacl);
+            FreePointerC(pSacl);
 
-        FreePointerC(pSecurityDescriptor);
-        return acl;
-    }
-
-
-    public static ACL ResolvePermissionsSlow(string path)
-    {
-        ACL acl = new();
-        try
-        {
-            new FileStream(path, FileMode.Open, FileAccess.Read).Dispose();
-            acl.Readable = true;
+            FreePointerC(pSecurityDescriptor);
+            return acl;
         }
-        catch 
-        {
-            // An error is expected if not readable
-        }
-        try
-        {
-            new FileStream(path, FileMode.Open, FileAccess.Write).Dispose();
-            acl.Writeable = true;
-        }
-        catch
-        {
-            // An error is expected if not writeable
-        }
-        return acl;
-    }
 
-    [DllImport("advapi32.dll", SetLastError = true)]
-    static extern bool GetFileSecurity(string lpFileName, SECURITY_INFORMATION RequestedInformation, IntPtr pSecurityDescriptor, uint nLength, out uint lpnLengthNeeded);
-    [DllImport("advapi32.dll", SetLastError = true)]
-    static extern bool GetSecurityDescriptorOwner(IntPtr pSecurityDescriptor, out IntPtr pOwner, out bool lpbOwnerDefaulted);
-    [DllImport("advapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-    static extern bool LookupAccountSid(string lpSystemName, IntPtr Sid, StringBuilder lpName, ref uint cchName, StringBuilder lpReferencedDomainName, ref uint cchReferencedDomainName, out SID_NAME_USE peUse);
 
-    enum SID_NAME_USE
-    {
-        SidTypeUser = 1,
-        SidTypeGroup,
-        SidTypeDomain,
-        SidTypeAlias,
-        SidTypeWellKnownGroup,
-        SidTypeDeletedAccount,
-        SidTypeInvalid,
-        SidTypeUnknown,
-        SidTypeComputer,
-        SidTypeLabel
-    }
-
-    static readonly Dictionary<string, string> _sidCache = new();
-    static readonly object _sidCacheLock = new object();
-    private const int MAX_SID_CACHE_SIZE = 10000;
-
-    public static string GetFileOwner(string filePath)
-    {
-        string ownerResult = string.Empty;
-        uint needed = 0;
-        if (!GetFileSecurity(filePath, SECURITY_INFORMATION.OWNER_SECURITY_INFORMATION, IntPtr.Zero, 0, out needed))
+        public static ACL ResolvePermissionsSlow(string path)
         {
-            int err = Marshal.GetLastWin32Error();
-            if (err != 122) // ERROR_INSUFFICIENT_BUFFER
-                return $"<ERROR_{err}>";
+            ACL acl = new();
+            try
+            {
+                new FileStream(path, FileMode.Open, FileAccess.Read).Dispose();
+                acl.Readable = true;
+            }
+            catch
+            {
+                // An error is expected if not readable
+            }
+            try
+            {
+                new FileStream(path, FileMode.Open, FileAccess.Write).Dispose();
+                acl.Writeable = true;
+            }
+            catch
+            {
+                // An error is expected if not writeable
+            }
+            return acl;
         }
-        IntPtr pSD = Marshal.AllocHGlobal((int)needed);
-        try
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool GetFileSecurity(string lpFileName, SECURITY_INFORMATION RequestedInformation, IntPtr pSecurityDescriptor, uint nLength, out uint lpnLengthNeeded);
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool GetSecurityDescriptorOwner(IntPtr pSecurityDescriptor, out IntPtr pOwner, out bool lpbOwnerDefaulted);
+        [DllImport("advapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        static extern bool LookupAccountSid(string lpSystemName, IntPtr Sid, StringBuilder lpName, ref uint cchName, StringBuilder lpReferencedDomainName, ref uint cchReferencedDomainName, out SID_NAME_USE peUse);
+
+        enum SID_NAME_USE
         {
-            if (!GetFileSecurity(filePath, SECURITY_INFORMATION.OWNER_SECURITY_INFORMATION, pSD, needed, out needed))
+            SidTypeUser = 1,
+            SidTypeGroup,
+            SidTypeDomain,
+            SidTypeAlias,
+            SidTypeWellKnownGroup,
+            SidTypeDeletedAccount,
+            SidTypeInvalid,
+            SidTypeUnknown,
+            SidTypeComputer,
+            SidTypeLabel
+        }
+
+        static readonly Dictionary<string, string> _sidCache = new();
+        static readonly object _sidCacheLock = new object();
+        private const int MAX_SID_CACHE_SIZE = 10000;
+
+        public static string GetFileOwner(string filePath)
+        {
+            string ownerResult = string.Empty;
+            uint needed = 0;
+            if (!GetFileSecurity(filePath, SECURITY_INFORMATION.OWNER_SECURITY_INFORMATION, IntPtr.Zero, 0, out needed))
             {
                 int err = Marshal.GetLastWin32Error();
-                if (err == 5) return "<ACCESS_DENIED>";
-                return $"<ERROR_{err}>";
+                if (err != 122) // ERROR_INSUFFICIENT_BUFFER
+                    return $"<ERROR_{err}>";
             }
-            IntPtr pOwner;
-            bool def;
-            if (!GetSecurityDescriptorOwner(pSD, out pOwner, out def))
+            IntPtr pSD = Marshal.AllocHGlobal((int)needed);
+            try
             {
-                int err = Marshal.GetLastWin32Error();
-                return $"<ERROR_{err}>";
-            }
-
-            SecurityIdentifier sid = new SecurityIdentifier(pOwner);
-            string sidStr = sid.Value;
-            lock (_sidCacheLock)
-            {
-                if (_sidCache.TryGetValue(sidStr, out ownerResult))
-                    return ownerResult;
-            }
-
-            uint cchName = 0;
-            uint cchDomain = 0;
-            SID_NAME_USE use;
-            LookupAccountSid(null, pOwner, null, ref cchName, null, ref cchDomain, out use);
-            StringBuilder name = new StringBuilder((int)cchName);
-            StringBuilder domain = new StringBuilder((int)cchDomain);
-            if (!LookupAccountSid(null, pOwner, name, ref cchName, domain, ref cchDomain, out use))
-            {
-                int err = Marshal.GetLastWin32Error();
-                if (err == 1332) { ownerResult = sidStr; }
-                else if (err == 5) { ownerResult = "<ACCESS_DENIED>"; }
-                else { ownerResult = $"<ERROR_{err}>"; }
-            }
-            else
-            {
-                ownerResult = $"{domain}\\{name}";
-            }
-            // Prevent unbounded cache growth with thread safety
-            lock (_sidCacheLock)
-            {
-                if (_sidCache.Count >= MAX_SID_CACHE_SIZE)
+                if (!GetFileSecurity(filePath, SECURITY_INFORMATION.OWNER_SECURITY_INFORMATION, pSD, needed, out needed))
                 {
-                    _sidCache.Clear();
+                    int err = Marshal.GetLastWin32Error();
+                    if (err == 5) return "<ACCESS_DENIED>";
+                    return $"<ERROR_{err}>";
                 }
-                _sidCache[sidStr] = ownerResult;
+                IntPtr pOwner;
+                bool def;
+                if (!GetSecurityDescriptorOwner(pSD, out pOwner, out def))
+                {
+                    int err = Marshal.GetLastWin32Error();
+                    return $"<ERROR_{err}>";
+                }
+
+                SecurityIdentifier sid = new SecurityIdentifier(pOwner);
+                string sidStr = sid.Value;
+                lock (_sidCacheLock)
+                {
+                    if (_sidCache.TryGetValue(sidStr, out ownerResult))
+                        return ownerResult;
+                }
+
+                uint cchName = 0;
+                uint cchDomain = 0;
+                SID_NAME_USE use;
+                LookupAccountSid(null, pOwner, null, ref cchName, null, ref cchDomain, out use);
+                StringBuilder name = new StringBuilder((int)cchName);
+                StringBuilder domain = new StringBuilder((int)cchDomain);
+                if (!LookupAccountSid(null, pOwner, name, ref cchName, domain, ref cchDomain, out use))
+                {
+                    int err = Marshal.GetLastWin32Error();
+                    if (err == 1332) { ownerResult = sidStr; }
+                    else if (err == 5) { ownerResult = "<ACCESS_DENIED>"; }
+                    else { ownerResult = $"<ERROR_{err}>"; }
+                }
+                else
+                {
+                    ownerResult = $"{domain}\\{name}";
+                }
+                // Prevent unbounded cache growth with thread safety
+                lock (_sidCacheLock)
+                {
+                    if (_sidCache.Count >= MAX_SID_CACHE_SIZE)
+                    {
+                        _sidCache.Clear();
+                    }
+                    _sidCache[sidStr] = ownerResult;
+                }
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(pSD);
+            }
+            return ownerResult;
+        }
+
+        static void FreePointerH(IntPtr pointer)
+        {
+            if (pointer != IntPtr.Zero)
+                Marshal.FreeHGlobal(pointer);
+        }
+
+        static void FreePointerC(IntPtr pointer)
+        {
+            if (pointer != IntPtr.Zero)
+                Marshal.FreeCoTaskMem(pointer);
+        }
+
+        public static string ComputeFastHash(string filePath)
+        {
+            const int READ_SIZE = 65536;
+            try
+            {
+                using FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                int toRead = (int)Math.Min(READ_SIZE, fs.Length);
+                byte[] buffer = new byte[toRead];
+                int read = fs.Read(buffer, 0, toRead);
+                ulong hash = XxHash64.HashToUInt64(buffer.AsSpan(0, read));
+                return hash.ToString("x16");
+            }
+            catch
+            {
+                return string.Empty;
             }
         }
-        finally
-        {
-            Marshal.FreeHGlobal(pSD);
-        }
-        return ownerResult;
-    }
 
-    static void FreePointerH(IntPtr pointer)
-    {
-        if (pointer != IntPtr.Zero)
-            Marshal.FreeHGlobal(pointer);
-    }
-
-    static void FreePointerC(IntPtr pointer )
-    {
-        if (pointer != IntPtr.Zero)
-            Marshal.FreeCoTaskMem(pointer);
-    }
-
-    public static string ComputeFastHash(string filePath)
-    {
-        const int READ_SIZE = 65536;
-        try
+        public static string DetectFileSignature(string filePath)
         {
-            using FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            int toRead = (int)Math.Min(READ_SIZE, fs.Length);
-            byte[] buffer = new byte[toRead];
-            int read = fs.Read(buffer, 0, toRead);
-            ulong hash = XxHash64.HashToUInt64(buffer.AsSpan(0, read));
-            return hash.ToString("x16");
+            const int READ_SIZE = 32;
+            try
+            {
+                using FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                int toRead = (int)Math.Min(READ_SIZE, fs.Length);
+                byte[] buffer = new byte[toRead];
+                int read = fs.Read(buffer, 0, toRead);
+                using MemoryStream ms = new MemoryStream(buffer, 0, read);
+                var inspector = new FileSignatures.FileFormatInspector();
+                var format = inspector.DetermineFileFormat(ms);
+                return format == null ? "unknown" : format.Extension.TrimStart('.').ToLower();
+            }
+            catch
+            {
+                return string.Empty;
+            }
         }
-        catch
+        public static void RetrieveFile(File file, string outputPath)
         {
-            return string.Empty;
-        }
-    }
-
-    public static string DetectFileSignature(string filePath)
-    {
-        const int READ_SIZE = 32;
-        try
-        {
-            using FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            int toRead = (int)Math.Min(READ_SIZE, fs.Length);
-            byte[] buffer = new byte[toRead];
-            int read = fs.Read(buffer, 0, toRead);
-            using MemoryStream ms = new MemoryStream(buffer, 0, read);
-            var inspector = new FileSignatures.FileFormatInspector();
-            var format = inspector.DetermineFileFormat(ms);
-            return format == null ? "unknown" : format.Extension.TrimStart('.').ToLower();
-        }
-        catch
-        {
-            return string.Empty;
-        }
-    }
-    public static void RetrieveFile(File file, string outputPath)
-    {
             System.IO.File.Copy(file.FullName, outputPath, true);
-    }
-	
+        }
+
     }
 }

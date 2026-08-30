@@ -29,12 +29,12 @@ namespace SMBeagle.FileDiscovery
                     var dirInfo = new UnixDirectoryInfo(Path.GetDirectoryName(path));
                     acl.Deletable = (dirInfo.FileAccessPermissions & FileAccessPermissions.UserWrite) != 0;
                     if (verbose)
-                        OutputHelper.WriteLine($"[LOCAL-ACL] Linux permissions R:{acl.Readable}/W:{acl.Writeable}/D:{acl.Deletable} for {Path.GetFileName(path)}",3);
+                        OutputHelper.WriteLine($"[LOCAL-ACL] Linux permissions R:{acl.Readable}/W:{acl.Writeable}/D:{acl.Deletable} for {Path.GetFileName(path)}", 3);
                 }
                 catch (Exception ex)
                 {
                     if (verbose)
-                        OutputHelper.WriteLine($"[LOCAL-ACL] Error getting Linux permissions for {Path.GetFileName(path)}: {ex.Message}",3);
+                        OutputHelper.WriteLine($"[LOCAL-ACL] Error getting Linux permissions for {Path.GetFileName(path)}: {ex.Message}", 3);
                     acl.Readable = System.IO.File.Exists(path);
                 }
                 return acl;
@@ -52,31 +52,31 @@ namespace SMBeagle.FileDiscovery
                 int read = fs.Read(buffer, 0, toRead);
                 ulong hash = XxHash64.HashToUInt64(buffer.AsSpan(0, read));
                 if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-HASH] Computed hash for: {Path.GetFileName(filePath)}",3);
+                    OutputHelper.WriteLine($"[LOCAL-HASH] Computed hash for: {Path.GetFileName(filePath)}", 3);
                 return hash.ToString("x16");
             }
             catch (UnauthorizedAccessException)
             {
                 if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-HASH] Access denied: {Path.GetFileName(filePath)}",3);
+                    OutputHelper.WriteLine($"[LOCAL-HASH] Access denied: {Path.GetFileName(filePath)}", 3);
                 return "<ACCESS_DENIED>";
             }
             catch (FileNotFoundException)
             {
                 if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-HASH] File not found: {Path.GetFileName(filePath)}",3);
+                    OutputHelper.WriteLine($"[LOCAL-HASH] File not found: {Path.GetFileName(filePath)}", 3);
                 return "<FILE_NOT_FOUND>";
             }
             catch (IOException ex)
             {
                 if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-HASH] I/O error for {Path.GetFileName(filePath)}: {ex.Message}",3);
+                    OutputHelper.WriteLine($"[LOCAL-HASH] I/O error for {Path.GetFileName(filePath)}: {ex.Message}", 3);
                 return "<IO_ERROR>";
             }
             catch (Exception ex)
             {
                 if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-HASH] Unexpected error for {Path.GetFileName(filePath)}: {ex.GetType().Name}",3);
+                    OutputHelper.WriteLine($"[LOCAL-HASH] Unexpected error for {Path.GetFileName(filePath)}: {ex.GetType().Name}", 3);
                 return $"<ERROR_{ex.GetType().Name}>";
             }
         }
@@ -95,31 +95,31 @@ namespace SMBeagle.FileDiscovery
                 var format = inspector.DetermineFileFormat(ms);
                 string result = format == null ? "unknown" : format.Extension.TrimStart('.').ToLower();
                 if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-SIGN] Signature for {Path.GetFileName(filePath)}: {result}",3);
+                    OutputHelper.WriteLine($"[LOCAL-SIGN] Signature for {Path.GetFileName(filePath)}: {result}", 3);
                 return result;
             }
             catch (UnauthorizedAccessException)
             {
                 if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-SIGN] Access denied: {Path.GetFileName(filePath)}",3);
+                    OutputHelper.WriteLine($"[LOCAL-SIGN] Access denied: {Path.GetFileName(filePath)}", 3);
                 return "<ACCESS_DENIED>";
             }
             catch (FileNotFoundException)
             {
                 if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-SIGN] File not found: {Path.GetFileName(filePath)}",3);
+                    OutputHelper.WriteLine($"[LOCAL-SIGN] File not found: {Path.GetFileName(filePath)}", 3);
                 return "<FILE_NOT_FOUND>";
             }
             catch (IOException ex)
             {
                 if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-SIGN] I/O error for {Path.GetFileName(filePath)}: {ex.Message}",3);
+                    OutputHelper.WriteLine($"[LOCAL-SIGN] I/O error for {Path.GetFileName(filePath)}: {ex.Message}", 3);
                 return "<IO_ERROR>";
             }
             catch (Exception ex)
             {
                 if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-SIGN] Unexpected error for {Path.GetFileName(filePath)}: {ex.GetType().Name}",3);
+                    OutputHelper.WriteLine($"[LOCAL-SIGN] Unexpected error for {Path.GetFileName(filePath)}: {ex.GetType().Name}", 3);
                 return $"<ERROR_{ex.GetType().Name}>";
             }
         }
@@ -139,13 +139,13 @@ namespace SMBeagle.FileDiscovery
                 var groupInfo = fileInfo.OwnerGroup;
                 string result = $"{ownerInfo.UserName}:{groupInfo.GroupName}";
                 if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-OWNER] Linux owner: {result} for {Path.GetFileName(filePath)}",3);
+                    OutputHelper.WriteLine($"[LOCAL-OWNER] Linux owner: {result} for {Path.GetFileName(filePath)}", 3);
                 return result;
             }
             catch (Exception ex)
             {
                 if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-OWNER] Error getting Linux owner for {Path.GetFileName(filePath)}: {ex.Message}",3);
+                    OutputHelper.WriteLine($"[LOCAL-OWNER] Error getting Linux owner for {Path.GetFileName(filePath)}: {ex.Message}", 3);
                 return $"<LINUX_ERROR_{ex.GetType().Name}>";
             }
         }

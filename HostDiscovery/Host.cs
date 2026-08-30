@@ -13,9 +13,9 @@ namespace SMBeagle.HostDiscovery
         public bool SMBAvailable { get { return _SMBAvailable; } }
         private bool _SMBAvailable { get; set; }
         public List<Share> Shares { get; set; } = new();
-        #nullable enable
+#nullable enable
         public ISMBClient? Client { get; set; } = null;
-        #nullable disable
+#nullable disable
         public int ShareCount { get { return Shares.Count; } }
         public Host(string address)
         {

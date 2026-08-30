@@ -24,8 +24,8 @@ namespace SMBeagle.FileDiscovery
         {
             get
             {
-                List<Directory> 
-                    ret = new ();
+                List<Directory>
+                    ret = new();
 
                 ret.AddRange(_directories);
 
@@ -88,9 +88,9 @@ namespace SMBeagle.FileDiscovery
                 }
             }
             pClientContext = IntPtr.Zero;
-            if (! crossPlatform)
+            if (!crossPlatform)
             {
-                #pragma warning disable CA1416
+#pragma warning disable CA1416
                 pClientContext = WindowsHelper.GetpClientContext();
                 if (enumerateAcls & pClientContext == IntPtr.Zero & !quiet)
                 {
@@ -99,7 +99,7 @@ namespace SMBeagle.FileDiscovery
                     if (!getPermissionsForSingleFileInDir)
                         OutputHelper.WriteLine("    It is advisable to set the fast flag and only check the ACLs of one file per directory", 1);
                 }
-                #pragma warning restore CA1416
+#pragma warning restore CA1416
             }
 
             if (localPaths != null && localPaths.Any())
@@ -120,9 +120,10 @@ namespace SMBeagle.FileDiscovery
 
             bool abort = false;
 
-            #nullable enable
-            System.ConsoleCancelEventHandler handler = (object? sender, ConsoleCancelEventArgs e) => {
-            #nullable disable
+#nullable enable
+            System.ConsoleCancelEventHandler handler = (object? sender, ConsoleCancelEventArgs e) =>
+            {
+#nullable disable
                 if (e.SpecialKey.HasFlag(ConsoleSpecialKey.ControlBreak))
                 {
                     e.Cancel = true;
@@ -166,8 +167,8 @@ namespace SMBeagle.FileDiscovery
                 bool useCrossFiles = _localScan ? false : crossPlatform;
                 dir.FindFilesRecursively(crossPlatform: useCrossFiles, ref abort, extensionsToIgnore: extensionsToIgnore, includeFileSize: _includeFileSize, includeAccessTime: _includeAccessTime, includeFileAttributes: _includeFileAttributes, includeFileOwner: _includeFileOwner, includeFastHash: _includeFastHash, includeFileSignature: _includeFileSignature, verbose: verbose);
                 if (verbose)
-                    OutputHelper.WriteLine($"\rFound {dir.ChildDirectories.Count} child directories and {dir.RecursiveFiles.Count} files in '{dir.UNCPath}'",2);
-                
+                    OutputHelper.WriteLine($"\rFound {dir.ChildDirectories.Count} child directories and {dir.RecursiveFiles.Count} files in '{dir.UNCPath}'", 2);
+
                 var filesToProcess = new List<File>(dir.RecursiveFiles);
                 foreach (File file in filesToProcess)
                 {
@@ -177,7 +178,7 @@ namespace SMBeagle.FileDiscovery
                     {
                         addedToSet = FilesSentForOutput.Add(fileKey);
                     }
-                    
+
                     if (addedToSet) // returns True if not already present
                     {
                         if (enumerateAcls)
@@ -188,25 +189,25 @@ namespace SMBeagle.FileDiscovery
                                 FetchFilePermission(file, crossPlatform, getPermissionsForSingleFileInDir);
                         }
 
-						OutputHelper.AddPayload(new Output.FileOutput(file), Enums.OutputtersEnum.File);
+                        OutputHelper.AddPayload(new Output.FileOutput(file), Enums.OutputtersEnum.File);
 
-						if (fetchFiles && filePatterns?.Any(pattern => Regex.IsMatch(file.Name, pattern, RegexOptions.IgnoreCase)) == true)
+                        if (fetchFiles && filePatterns?.Any(pattern => Regex.IsMatch(file.Name, pattern, RegexOptions.IgnoreCase)) == true)
                         {
                             if (_localScan)
                                 tasks.Add(Task.Run(() => FetchFileLocal(file, outputDirectory)));
                             else
                                 tasks.Add(Task.Run(() => FetchFile(file, crossPlatform, outputDirectory)));
                             if (crossPlatform && !_localScan)
-							    Task.WaitAll(tasks.ToArray());
-						}
-					}
+                                Task.WaitAll(tasks.ToArray());
+                        }
+                    }
                 }
 
                 dir.Clear();
                 CacheACL.Clear(); // Clear Cached ACLs otherwise it grows and grows
             }
-			Task.WaitAll(tasks.ToArray());
-			Console.CancelKeyPress -= handler;
+            Task.WaitAll(tasks.ToArray());
+            Console.CancelKeyPress -= handler;
             OutputHelper.WriteLine($"\r  file enumeration complete, {FilesSentForOutput.Count} files identified                ");
         }
 
@@ -325,24 +326,24 @@ namespace SMBeagle.FileDiscovery
             {
                 ACL permissions;
                 if (!crossPlatform)
-                #pragma warning disable CA1416
+#pragma warning disable CA1416
                 {
                     if (pClientContext != IntPtr.Zero)
                         permissions = WindowsHelper.ResolvePermissions(file.FullName, pClientContext);
 
                     else
                         permissions = WindowsHelper.ResolvePermissionsSlow(file.FullName);
-                    
+
                 }
-                #pragma warning restore CA1416
+#pragma warning restore CA1416
                 else
                 {
                     permissions = CrossPlatformHelper.ResolvePermissions(file);
                 }
                 file.SetPermissionsFromACL(permissions);
 
-            if (useCache)
-                CacheACL[file.ParentDirectory.Path] = permissions;
+                if (useCache)
+                    CacheACL[file.ParentDirectory.Path] = permissions;
             }
         }
 
@@ -365,26 +366,26 @@ namespace SMBeagle.FileDiscovery
             }
         }
 
-		private void FetchFile(File file, bool crossPlatform, string outputDirectory)
-		{
+        private void FetchFile(File file, bool crossPlatform, string outputDirectory)
+        {
             byte[] fileBytes;
             string filename;
-			if (!crossPlatform)
+            if (!crossPlatform)
 #pragma warning disable CA1416
-			{
+            {
                 // TODO: Add windows method
-				filename = $"{outputDirectory}{Path.DirectorySeparatorChar}{file.FullName}".Replace("\\", "_").Replace("/", "_");
-				filename = $"{outputDirectory}{Path.DirectorySeparatorChar}{filename}";
-				WindowsHelper.RetrieveFile(file, filename);
-			}
+                filename = $"{outputDirectory}{Path.DirectorySeparatorChar}{file.FullName}".Replace("\\", "_").Replace("/", "_");
+                filename = $"{outputDirectory}{Path.DirectorySeparatorChar}{filename}";
+                WindowsHelper.RetrieveFile(file, filename);
+            }
 #pragma warning restore CA1416
-			else
-			{
-				filename = $"{file.ParentDirectory.Share.uncPath}{file.FullName}".Replace("\\", "_").Replace("/", "_");
+            else
+            {
+                filename = $"{file.ParentDirectory.Share.uncPath}{file.FullName}".Replace("\\", "_").Replace("/", "_");
                 filename = $"{outputDirectory}{Path.DirectorySeparatorChar}{filename}";
                 CrossPlatformHelper.RetrieveFile(file, filename);
-			}
+            }
 
-		}
-	}
+        }
+    }
 }

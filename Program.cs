@@ -34,10 +34,10 @@ namespace SMBeagle
             else
                 Console.WriteLine("SMBeagle by PunkSecurity [punksecurity.co.uk]");
 
-            if (! RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 // TODO: should we have an enum for exit codes?
-                if (opts.Username == null|| opts.Password == null)
+                if (opts.Username == null || opts.Password == null)
                 {
                     OutputHelper.WriteLine("ERROR: Username and Password required on none Windows platforms");
                     Environment.Exit(1);
@@ -50,7 +50,7 @@ namespace SMBeagle
                 Environment.Exit(1);
             }
             bool crossPlatform = false;
-            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || opts.Username != null )
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || opts.Username != null)
             {
                 crossPlatform = true;
                 // The library we use hangs when scanning ourselves
@@ -143,7 +143,7 @@ namespace SMBeagle
                         OutputHelper.WriteLine(pn.ToString(), 2);
                 }
             }
-                
+
             else
             {
                 OutputHelper.WriteLine("1. Skipping network discovery due to -D switch...");
@@ -192,9 +192,9 @@ namespace SMBeagle
                 OutputHelper.WriteLine("2. Skipping filtering as network discovery disabled...");
             }
 
-            if (! opts.ScanLocalShares)
+            if (!opts.ScanLocalShares)
             {
-                filteredAddresses.AddRange(nf.DiscoverNetworksViaClientConfiguration(store:false));
+                filteredAddresses.AddRange(nf.DiscoverNetworksViaClientConfiguration(store: false));
             }
             filteredAddresses.AddRange(opts.ExcludedHosts.ToList());
 
@@ -288,15 +288,15 @@ namespace SMBeagle
 
             if (!opts.Quiet)
             {
-                OutputHelper.WriteLine("reachabled hosts with accessible SMB shares:",2);
+                OutputHelper.WriteLine("reachabled hosts with accessible SMB shares:", 2);
                 foreach (Host host in hf.HostsWithShares)
-                    OutputHelper.WriteLine(host.Address,3);
+                    OutputHelper.WriteLine(host.Address, 3);
             }
-            
+
             // Build list of uncPaths from up hosts
             List<Share> shares = new();
-                foreach (Host h in hf.HostsWithShares)
-                    shares.AddRange(h.Shares);
+            foreach (Host h in hf.HostsWithShares)
+                shares.AddRange(h.Shares);
 
             if (opts.Verbose)
             {
@@ -305,7 +305,7 @@ namespace SMBeagle
                     OutputHelper.WriteLine(share.uncPath, 3);
             }
 
-            if(opts.ExcludeHiddenShares || opts.Shares.Any() || opts.ExcludedShares.Any())
+            if (opts.ExcludeHiddenShares || opts.Shares.Any() || opts.ExcludedShares.Any())
                 OutputHelper.WriteLine("6a. Filtering share list");
 
             if (opts.Shares.Any())
@@ -318,7 +318,7 @@ namespace SMBeagle
 
             if (opts.ExcludeHiddenShares)
             {
-                OutputHelper.WriteLine("Filtering out hidden shares",1);
+                OutputHelper.WriteLine("Filtering out hidden shares", 1);
                 shares = shares
                     .Where(item => !item.Name.EndsWith('$'))
                     .ToList();
@@ -328,11 +328,11 @@ namespace SMBeagle
             {
                 OutputHelper.WriteLine("Filtering out named excluded shares", 1);
                 shares = shares
-                    .Where(item => ! opts.ExcludedShares.ToList().ConvertAll(i => i.ToLower()).Contains(item.Name.ToLower()))
+                    .Where(item => !opts.ExcludedShares.ToList().ConvertAll(i => i.ToLower()).Contains(item.Name.ToLower()))
                     .ToList();
             }
 
-            if (! shares.Any())
+            if (!shares.Any())
             {
                 OutputHelper.WriteLine("There are no accessible SMB shares to scan.  Exiting...");
                 Environment.Exit(0);
@@ -350,22 +350,22 @@ namespace SMBeagle
             List<String> networkFilePatterns = new List<string> { ".*(password|config|credentials|creds).*", ".*(ps1|bat|vbs|sh|cmd)$" };
 
 
-			if (opts.GrabFiles)
+            if (opts.GrabFiles)
             {
                 OutputHelper.WriteLine($"Grabbing files and storing them in {opts.OutputDirectory}", 1);
                 if (opts.FilePatterns.Any())
                 {
                     networkFilePatterns = opts.FilePatterns.ToList();
-					OutputHelper.WriteLine($"Using the provided regexes", 1);
-				}
+                    OutputHelper.WriteLine($"Using the provided regexes", 1);
+                }
             }
             else
             {
-				OutputHelper.WriteLine($"NOT Grabbing files - use the '-g' flag to grab them if needed", 1);
-			}
+                OutputHelper.WriteLine($"NOT Grabbing files - use the '-g' flag to grab them if needed", 1);
+            }
 
-			// Find files on all the shares
-			FileFinder
+            // Find files on all the shares
+            FileFinder
                 ff = new(
                     shares: shares,
                     outputDirectory: opts.OutputDirectory,
@@ -404,7 +404,7 @@ namespace SMBeagle
                 h.Copyright = "Apache License 2.0";
                 return HelpText.DefaultParsingErrorsHandler(result, h);
             }, e => e);
-        Console.WriteLine(helpText);
+            Console.WriteLine(helpText);
         }
 
         static void OutputHelp(Exception err)
@@ -468,16 +468,16 @@ namespace SMBeagle
             [Option('s', "share", Required = false, HelpText = "Only scan shares with this name (multiple accepted)")]
             public IEnumerable<string> Shares { get; set; }
 
-			[Option("file-pattern", Required = false, HelpText = "Only fetch files matching these regexes patterns")]
-			public IEnumerable<string> FilePatterns { get; set; }
+            [Option("file-pattern", Required = false, HelpText = "Only fetch files matching these regexes patterns")]
+            public IEnumerable<string> FilePatterns { get; set; }
 
-			[Option('g', "grab-files", Required = false, HelpText = "Grab files and store them locally")]
-			public bool GrabFiles { get; set; }
+            [Option('g', "grab-files", Required = false, HelpText = "Grab files and store them locally")]
+            public bool GrabFiles { get; set; }
 
-			[Option("loot", Required = false, Default = "loot", HelpText = "Path to store grabbed files")]
-			public string OutputDirectory { get; set; }
+            [Option("loot", Required = false, Default = "loot", HelpText = "Path to store grabbed files")]
+            public string OutputDirectory { get; set; }
 
-			[Option('E', "exclude-hidden-shares", Required = false, HelpText = "Exclude shares ending in $")]
+            [Option('E', "exclude-hidden-shares", Required = false, HelpText = "Exclude shares ending in $")]
             public bool ExcludeHiddenShares { get; set; }
 
             [Option('v', "verbose", Required = false, HelpText = "Give more output")]
@@ -522,10 +522,10 @@ namespace SMBeagle
                 {
                     UnParserSettings unParserSettings = new();
                     unParserSettings.PreferShortName = true;
-                    yield return new Example("Output to a CSV file", unParserSettings,new Options { CsvFile = "out.csv" });
+                    yield return new Example("Output to a CSV file", unParserSettings, new Options { CsvFile = "out.csv" });
                     yield return new Example("Output to elasticsearch (Preferred)", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1" });
                     yield return new Example("Output to elasticsearch and CSV", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", CsvFile = "out.csv" });
-                    yield return new Example("Disable network discovery and provide manual networks", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", DisableNetworkDiscovery = true,  Networks = new List<String>() { "192.168.12.0/23", "192.168.15.0/24" } });
+                    yield return new Example("Disable network discovery and provide manual networks", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", DisableNetworkDiscovery = true, Networks = new List<String>() { "192.168.12.0/23", "192.168.15.0/24" } });
                     yield return new Example("Do not enumerate ACLs (FASTER)", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", DontEnumerateAcls = true });
                     yield return new Example("Collect file size metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", SizeFile = true });
                     yield return new Example("Collect file access time metadata", unParserSettings, new Options { ElasticsearchHost = "127.0.0.1", AccessTime = true });

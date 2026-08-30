@@ -9,8 +9,9 @@ namespace SMBeagle.NetworkDiscovery
 {
     class NetworkFinder
     {
-        public List<Network> PrivateNetworks { 
-            get 
+        public List<Network> PrivateNetworks
+        {
+            get
             {
                 return _Networks.Where(item => item.IsPrivate).ToList();
             }
@@ -79,7 +80,7 @@ namespace SMBeagle.NetworkDiscovery
                 return; // remove childnet if this network fully contains it
             // todo: are there edge cases where we want to keep child nets?
             List<Network> iter = new List<Network>(_Networks);
-            foreach ( Network net in iter)
+            foreach (Network net in iter)
             {
                 if (network.ContainsNetwork(net))
                     _Networks.Remove(net);
@@ -108,7 +109,7 @@ namespace SMBeagle.NetworkDiscovery
         {
             // Remove ScopeID on IPv6
             if (address.Contains("%"))
-                address = address.Substring(0,address.IndexOf("%"));
+                address = address.Substring(0, address.IndexOf("%"));
             if (subnetmask != null && subnetmask != "0.0.0.0")
             {
                 cidr = IPNetwork2.ToCidr(IPAddress.Parse(subnetmask));
@@ -133,7 +134,7 @@ namespace SMBeagle.NetworkDiscovery
             return new HashSet<string>(addresses).ToList();
         }
 
-        public List<string> DiscoverNetworksViaClientConfiguration(bool store=true)
+        public List<string> DiscoverNetworksViaClientConfiguration(bool store = true)
         {
             List<string> localAddresses = new();
             foreach (NetworkInterface iface in NetworkInterface.GetAllNetworkInterfaces())
