@@ -67,7 +67,7 @@ namespace SMBeagle.FileDiscovery
         bool _includeFileOwner;
         bool _includeFastHash;
         bool _includeFileSignature;
-        public FileFinder(List<Share> shares, string outputDirectory, bool fetchFiles, List<String> filePatterns, bool getPermissionsForSingleFileInDir = true, bool enumerateAcls = true, bool quiet = false, bool verbose = false, bool crossPlatform = false, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, List<string>? localPaths = null)
+        public FileFinder(List<Share> shares, string outputDirectory, bool fetchFiles, List<String> filePatterns, bool getPermissionsForSingleFileInDir = true, bool enumerateAcls = true, bool quiet = false, bool verbose = false, bool crossPlatform = false, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, List<string> localPaths = null)
         {
             _includeFileSize = includeFileSize;
             _includeAccessTime = includeAccessTime;
@@ -368,7 +368,6 @@ namespace SMBeagle.FileDiscovery
 
         private void FetchFile(File file, bool crossPlatform, string outputDirectory)
         {
-            byte[] fileBytes;
             string filename;
             if (!crossPlatform)
 #pragma warning disable CA1416

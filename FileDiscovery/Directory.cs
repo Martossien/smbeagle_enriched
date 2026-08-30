@@ -118,8 +118,15 @@ namespace SMBeagle.FileDiscovery
                     if (includeFileOwner)
                         owner = WindowsHelper.GetFileOwner(file.FullName);
 #pragma warning restore CA1416
-                    string fastHash = includeFastHash ? WindowsHelper.ComputeFastHash(file.FullName) : string.Empty;
-                    string fileSignature = includeFileSignature ? WindowsHelper.DetectFileSignature(file.FullName) : string.Empty;
+                    string fastHash = string.Empty;
+                    string fileSignature = string.Empty;
+                    if (OperatingSystem.IsWindows())
+                    {
+                        if (includeFastHash)
+                            fastHash = WindowsHelper.ComputeFastHash(file.FullName);
+                        if (includeFileSignature)
+                            fileSignature = WindowsHelper.DetectFileSignature(file.FullName);
+                    }
                     Files.Add(
                         new File(
                             parentDirectory: this,
