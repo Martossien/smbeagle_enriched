@@ -1,11 +1,10 @@
-﻿.idea
-.github
 .git
-.gitignore
-.gitattributes
+.github
+.idea
 bin
 obj
+tests
+packages
 Docs
-Dockerfile
-LICENSE
-README.md
+Kibana
+*.md
