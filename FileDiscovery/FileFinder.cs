@@ -61,61 +61,50 @@ namespace SMBeagle.FileDiscovery
             }
         }
 
-        bool _includeFileSize;
-        bool _includeAccessTime;
-        bool _includeFileAttributes;
-        bool _includeFileOwner;
-        bool _includeFastHash;
-        bool _includeFileSignature;
-        public FileFinder(List<Share> shares, string outputDirectory, bool fetchFiles, List<String> filePatterns, bool getPermissionsForSingleFileInDir = true, bool enumerateAcls = true, bool quiet = false, bool verbose = false, bool crossPlatform = false, bool includeFileSize = false, bool includeAccessTime = false, bool includeFileAttributes = false, bool includeFileOwner = false, bool includeFastHash = false, bool includeFileSignature = false, List<string> localPaths = null)
+        readonly ScanOptions _opts;
+
+        public FileFinder(ScanOptions opts)
         {
-            _includeFileSize = includeFileSize;
-            _includeAccessTime = includeAccessTime;
-            _includeFileAttributes = includeFileAttributes;
-            _includeFileOwner = includeFileOwner;
-            _includeFastHash = includeFastHash;
-            _includeFileSignature = includeFileSignature;
-            if (fetchFiles)
+            _opts = opts;
+            if (opts.FetchFiles)
             {
                 try
                 {
-                    System.IO.Directory.CreateDirectory(outputDirectory);
+                    System.IO.Directory.CreateDirectory(opts.OutputDirectory);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    Console.WriteLine($"\nERROR: CANNOT CREATE LOOT DIR {outputDirectory}");
-                    Environment.Exit(0);
+                    OutputHelper.WriteError($"création du répertoire de butin '{opts.OutputDirectory}' impossible : {ex.Message}");
+                    throw;
                 }
             }
             pClientContext = IntPtr.Zero;
-            if (!crossPlatform)
+            if (!opts.CrossPlatform && OperatingSystem.IsWindows())
             {
-#pragma warning disable CA1416
                 pClientContext = WindowsHelper.GetpClientContext();
-                if (enumerateAcls & pClientContext == IntPtr.Zero & !quiet)
+                if (opts.EnumerateAcls & pClientContext == IntPtr.Zero & !opts.Quiet)
                 {
                     OutputHelper.WriteLine("!! Error querying user context.  Failing back to a slower ACL identifier.  ", 1);
                     OutputHelper.WriteLine("    We can also no longer check  if a file is deletable", 1);
-                    if (!getPermissionsForSingleFileInDir)
+                    if (!opts.GetPermissionsForSingleFileInDir)
                         OutputHelper.WriteLine("    It is advisable to set the fast flag and only check the ACLs of one file per directory", 1);
                 }
-#pragma warning restore CA1416
             }
 
-            if (localPaths != null && localPaths.Any())
+            if (opts.IsLocalScan)
             {
                 _localScan = true;
-                _directories.AddRange(GetLocalPathDirectories(localPaths, verbose));
+                _directories.AddRange(GetLocalPathDirectories(opts.LocalPaths, opts.Verbose));
             }
             else
             {
-                foreach (Share share in shares) //TODO: dedup share by host and name
+                foreach (Share share in opts.Shares) //TODO: dedup share by host and name
                 {
                     _directories.Add(new Directory(path: "", share: share) { DirectoryType = Enums.DirectoryTypeEnum.SMB });
                 }
             }
 
-            if (!quiet)
+            if (!opts.Quiet)
                 OutputHelper.WriteLine($"6a. Enumerating all subdirectories for known paths");
 
             bool abort = false;
@@ -139,34 +128,35 @@ namespace SMBeagle.FileDiscovery
 
             Console.CancelKeyPress += handler;
 
+            bool crossPlatform = _localScan ? false : opts.CrossPlatform;
             foreach (Directory dir in _directories)
             {
-                OutputHelper.WriteLine($"\rEnumerating all subdirectories for '{dir.UNCPath}' - CTRL-BREAK or CTRL-PAUSE to SKIP                                 ", 1, false);
-                bool useCross = _localScan ? false : crossPlatform;
-                dir.FindDirectoriesRecursively(crossPlatform: useCross, ref abort, verbose);
+                if (!opts.Quiet)
+                    OutputHelper.WriteLine($"\rEnumerating all subdirectories for '{dir.UNCPath}' - CTRL-BREAK or CTRL-PAUSE to SKIP                                 ", 1, false);
+                dir.FindDirectoriesRecursively(crossPlatform: crossPlatform, ref abort, opts.Verbose);
                 abort = false;
             }
 
             Console.CancelKeyPress -= handler;
 
-            if (!quiet)
+            if (!opts.Quiet)
                 OutputHelper.WriteLine($"\r6b. Splitting large directories to optimise caching and to batch output                                              ");
 
             SplitLargeDirectories();
 
-            if (!quiet)
+            if (!opts.Quiet)
                 OutputHelper.WriteLine($"6c. Enumerating files in directories");
 
             Console.CancelKeyPress += handler;
             var tasks = new List<Task>();
+            var extensionsToIgnore = new List<string>() { ".dll", ".manifest", ".cat" };
             foreach (Directory dir in _directories)
             {
                 abort = false;
-                OutputHelper.WriteLine($"\renumerating files in '{dir.UNCPath}' - CTRL-BREAK or CTRL-PAUSE to SKIP                                          ", 1, false);
-                var extensionsToIgnore = new List<string>() { ".dll", ".manifest", ".cat" };
-                bool useCrossFiles = _localScan ? false : crossPlatform;
-                dir.FindFilesRecursively(crossPlatform: useCrossFiles, ref abort, extensionsToIgnore: extensionsToIgnore, includeFileSize: _includeFileSize, includeAccessTime: _includeAccessTime, includeFileAttributes: _includeFileAttributes, includeFileOwner: _includeFileOwner, includeFastHash: _includeFastHash, includeFileSignature: _includeFileSignature, verbose: verbose);
-                if (verbose)
+                if (!opts.Quiet)
+                    OutputHelper.WriteLine($"\renumerating files in '{dir.UNCPath}' - CTRL-BREAK or CTRL-PAUSE to SKIP                                          ", 1, false);
+                dir.FindFilesRecursively(crossPlatform: crossPlatform, ref abort, extensionsToIgnore: extensionsToIgnore, opts: opts);
+                if (opts.Verbose)
                     OutputHelper.WriteLine($"\rFound {dir.ChildDirectories.Count} child directories and {dir.RecursiveFiles.Count} files in '{dir.UNCPath}'", 2);
 
                 var filesToProcess = new List<File>(dir.RecursiveFiles);
@@ -181,23 +171,23 @@ namespace SMBeagle.FileDiscovery
 
                     if (addedToSet) // returns True if not already present
                     {
-                        if (enumerateAcls)
+                        if (opts.EnumerateAcls)
                         {
                             if (_localScan)
                                 FetchFilePermissionLocal(file);
                             else
-                                FetchFilePermission(file, crossPlatform, getPermissionsForSingleFileInDir);
+                                FetchFilePermission(file, crossPlatform, opts.GetPermissionsForSingleFileInDir);
                         }
 
                         OutputHelper.AddPayload(new Output.FileOutput(file), Enums.OutputtersEnum.File);
 
-                        if (fetchFiles && filePatterns?.Any(pattern => Regex.IsMatch(file.Name, pattern, RegexOptions.IgnoreCase)) == true)
+                        if (opts.FetchFiles && opts.FilePatterns.Any(pattern => Regex.IsMatch(file.Name, pattern, RegexOptions.IgnoreCase)))
                         {
                             if (_localScan)
-                                tasks.Add(Task.Run(() => FetchFileLocal(file, outputDirectory)));
+                                tasks.Add(Task.Run(() => FetchFileLocal(file, opts.OutputDirectory)));
                             else
-                                tasks.Add(Task.Run(() => FetchFile(file, crossPlatform, outputDirectory)));
-                            if (crossPlatform && !_localScan)
+                                tasks.Add(Task.Run(() => FetchFile(file, crossPlatform, opts.OutputDirectory)));
+                            if (crossPlatform)
                                 Task.WaitAll(tasks.ToArray());
                         }
                     }
@@ -208,7 +198,8 @@ namespace SMBeagle.FileDiscovery
             }
             Task.WaitAll(tasks.ToArray());
             Console.CancelKeyPress -= handler;
-            OutputHelper.WriteLine($"\r  file enumeration complete, {FilesSentForOutput.Count} files identified                ");
+            if (!opts.Quiet)
+                OutputHelper.WriteLine($"\r  file enumeration complete, {FilesSentForOutput.Count} files identified                ");
         }
 
         private Enums.DirectoryTypeEnum DriveInfoTypeToDirectoryTypeEnum(DriveType type)
@@ -360,9 +351,9 @@ namespace SMBeagle.FileDiscovery
                 string filename = $"{outputDirectory}{Path.DirectorySeparatorChar}{file.FullName}".Replace("\\", "_").Replace("/", "_");
                 System.IO.File.Copy(file.FullName, filename, true);
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore errors during copy
+                OutputHelper.WriteError($"copie de '{file.FullName}' impossible : {ex.Message}");
             }
         }
 

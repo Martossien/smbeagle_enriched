@@ -90,24 +90,7 @@ namespace SMBeagle
                     OutputHelper.WriteLine($"Using the provided regexes", 1);
                 }
 
-                FileFinder ffLocal = new(
-                    shares: new List<Share>(),
-                    outputDirectory: opts.OutputDirectory,
-                    filePatterns: filePatterns,
-                    fetchFiles: opts.GrabFiles,
-                    getPermissionsForSingleFileInDir: opts.EnumerateOnlyASingleFilesAcl,
-                    enumerateAcls: !opts.DontEnumerateAcls,
-                    quiet: opts.Quiet,
-                    verbose: opts.Verbose,
-                    crossPlatform: crossPlatform,
-                    includeFileSize: opts.SizeFile,
-                    includeAccessTime: opts.AccessTime,
-                    includeFileAttributes: opts.FileAttributes,
-                    includeFileOwner: opts.OwnerFile,
-                    includeFastHash: opts.FastHash,
-                    includeFileSignature: opts.FileSignature,
-                    localPaths: opts.LocalPaths.ToList()
-                    );
+                FileFinder ffLocal = new(BuildScanOptions(opts, new List<Share>(), filePatterns, crossPlatform));
 
                 OutputHelper.WriteLine("7. Completing the writes to CSV or elasticsearch (or both)");
                 OutputHelper.CloseAndFlush();
@@ -368,23 +351,7 @@ namespace SMBeagle
             }
 
             // Find files on all the shares
-            FileFinder
-                ff = new(
-                    shares: shares,
-                    outputDirectory: opts.OutputDirectory,
-                    filePatterns: networkFilePatterns,
-                    fetchFiles: opts.GrabFiles,
-                    getPermissionsForSingleFileInDir: opts.EnumerateOnlyASingleFilesAcl,
-                    enumerateAcls: !opts.DontEnumerateAcls,
-                    verbose: opts.Verbose,
-                    crossPlatform: crossPlatform
-                    , includeFileSize: opts.SizeFile
-                    , includeAccessTime: opts.AccessTime
-                    , includeFileAttributes: opts.FileAttributes
-                    , includeFileOwner: opts.OwnerFile
-                    , includeFastHash: opts.FastHash
-                    , includeFileSignature: opts.FileSignature
-                    );
+            FileFinder ff = new(BuildScanOptions(opts, shares, networkFilePatterns, crossPlatform));
 
             OutputHelper.WriteLine("7. Completing the writes to CSV or elasticsearch (or both)");
 
@@ -394,6 +361,30 @@ namespace SMBeagle
 
 
             // TODO: know when elasticsearch sink has finished outputting
+        }
+
+        /// <summary>Options effectives de l'énumération, identiques en mode local et réseau (dont -q).</summary>
+        static ScanOptions BuildScanOptions(Options opts, List<Share> shares, List<string> filePatterns, bool crossPlatform)
+        {
+            return new ScanOptions
+            {
+                Shares = shares,
+                LocalPaths = opts.LocalPaths?.ToList() ?? new List<string>(),
+                OutputDirectory = opts.OutputDirectory,
+                FetchFiles = opts.GrabFiles,
+                FilePatterns = filePatterns,
+                GetPermissionsForSingleFileInDir = opts.EnumerateOnlyASingleFilesAcl,
+                EnumerateAcls = !opts.DontEnumerateAcls,
+                Quiet = opts.Quiet,
+                Verbose = opts.Verbose,
+                CrossPlatform = crossPlatform,
+                IncludeFileSize = opts.SizeFile,
+                IncludeAccessTime = opts.AccessTime,
+                IncludeFileAttributes = opts.FileAttributes,
+                IncludeFileOwner = opts.OwnerFile,
+                IncludeFastHash = opts.FastHash,
+                IncludeFileSignature = opts.FileSignature,
+            };
         }
 
         static void OutputHelp<T>(ParserResult<T> result, IEnumerable<Error> errs)

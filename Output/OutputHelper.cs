@@ -119,6 +119,12 @@ namespace SMBeagle.Output
                 Console.Write(pad + line);
         }
 
+        /// <summary>Erreur non fatale, sur stderr (jamais dans le CSV ni sur stdout).</summary>
+        public static void WriteError(string message)
+        {
+            Console.Error.WriteLine("ERREUR: " + message);
+        }
+
         #endregion
 
         #region Private methods
@@ -195,9 +201,9 @@ namespace SMBeagle.Output
 
                 output.WriteLine();
             }
-            catch
+            catch (Exception ex)
             {
-                // Intentionally empty
+                OutputHelper.WriteError($"ligne CSV non écrite : {ex.GetType().Name} {ex.Message}");
             }
         }
 

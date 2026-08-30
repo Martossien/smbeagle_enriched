@@ -5,7 +5,6 @@ using System.Runtime.Versioning;
 using System.Security.Principal;
 using System.Text;
 using System.Collections.Generic;
-using System.IO.Hashing;
 
 namespace SMBeagle.FileDiscovery
 {
@@ -281,18 +280,18 @@ namespace SMBeagle.FileDiscovery
                 new FileStream(path, FileMode.Open, FileAccess.Read).Dispose();
                 acl.Readable = true;
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                // An error is expected if not readable
+                // Sonde d'accès : l'échec est le résultat attendu (non lisible)
             }
             try
             {
                 new FileStream(path, FileMode.Open, FileAccess.Write).Dispose();
                 acl.Writeable = true;
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                // An error is expected if not writeable
+                // Sonde d'accès : l'échec est le résultat attendu (non modifiable)
             }
             return acl;
         }
@@ -403,43 +402,6 @@ namespace SMBeagle.FileDiscovery
                 Marshal.FreeCoTaskMem(pointer);
         }
 
-        public static string ComputeFastHash(string filePath)
-        {
-            const int READ_SIZE = 65536;
-            try
-            {
-                using FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                int toRead = (int)Math.Min(READ_SIZE, fs.Length);
-                byte[] buffer = new byte[toRead];
-                int read = fs.Read(buffer, 0, toRead);
-                ulong hash = XxHash64.HashToUInt64(buffer.AsSpan(0, read));
-                return hash.ToString("x16");
-            }
-            catch
-            {
-                return string.Empty;
-            }
-        }
-
-        public static string DetectFileSignature(string filePath)
-        {
-            const int READ_SIZE = 32;
-            try
-            {
-                using FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                int toRead = (int)Math.Min(READ_SIZE, fs.Length);
-                byte[] buffer = new byte[toRead];
-                int read = fs.Read(buffer, 0, toRead);
-                using MemoryStream ms = new MemoryStream(buffer, 0, read);
-                var inspector = new FileSignatures.FileFormatInspector();
-                var format = inspector.DetermineFileFormat(ms);
-                return format == null ? "unknown" : format.Extension.TrimStart('.').ToLower();
-            }
-            catch
-            {
-                return string.Empty;
-            }
-        }
         public static void RetrieveFile(File file, string outputPath)
         {
             System.IO.File.Copy(file.FullName, outputPath, true);

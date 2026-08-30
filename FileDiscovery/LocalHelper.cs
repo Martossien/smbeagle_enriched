@@ -1,6 +1,5 @@
-using System;
+﻿using System;
 using System.IO;
-using System.IO.Hashing;
 using System.Runtime.InteropServices;
 using Mono.Unix;
 using SMBeagle.Output;
@@ -14,8 +13,18 @@ namespace SMBeagle.FileDiscovery
             ACL acl = new();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                try { new FileStream(path, FileMode.Open, FileAccess.Read).Dispose(); acl.Readable = true; } catch { }
-                try { new FileStream(path, FileMode.Open, FileAccess.Write).Dispose(); acl.Writeable = true; } catch { }
+                try { new FileStream(path, FileMode.Open, FileAccess.Read).Dispose(); acl.Readable = true; }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    if (verbose)
+                        OutputHelper.WriteLine($"[LOCAL-ACL] Not readable: {Path.GetFileName(path)} ({ex.GetType().Name})", 3);
+                }
+                try { new FileStream(path, FileMode.Open, FileAccess.Write).Dispose(); acl.Writeable = true; }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    if (verbose)
+                        OutputHelper.WriteLine($"[LOCAL-ACL] Not writeable: {Path.GetFileName(path)} ({ex.GetType().Name})", 3);
+                }
                 return acl;
             }
             else
@@ -38,89 +47,6 @@ namespace SMBeagle.FileDiscovery
                     acl.Readable = System.IO.File.Exists(path);
                 }
                 return acl;
-            }
-        }
-
-        public static string ComputeFastHash(string filePath, bool verbose = false)
-        {
-            const int READ_SIZE = 65536;
-            try
-            {
-                using FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                int toRead = (int)Math.Min(READ_SIZE, fs.Length);
-                byte[] buffer = new byte[toRead];
-                int read = fs.Read(buffer, 0, toRead);
-                ulong hash = XxHash64.HashToUInt64(buffer.AsSpan(0, read));
-                if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-HASH] Computed hash for: {Path.GetFileName(filePath)}", 3);
-                return hash.ToString("x16");
-            }
-            catch (UnauthorizedAccessException)
-            {
-                if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-HASH] Access denied: {Path.GetFileName(filePath)}", 3);
-                return "<ACCESS_DENIED>";
-            }
-            catch (FileNotFoundException)
-            {
-                if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-HASH] File not found: {Path.GetFileName(filePath)}", 3);
-                return "<FILE_NOT_FOUND>";
-            }
-            catch (IOException ex)
-            {
-                if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-HASH] I/O error for {Path.GetFileName(filePath)}: {ex.Message}", 3);
-                return "<IO_ERROR>";
-            }
-            catch (Exception ex)
-            {
-                if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-HASH] Unexpected error for {Path.GetFileName(filePath)}: {ex.GetType().Name}", 3);
-                return $"<ERROR_{ex.GetType().Name}>";
-            }
-        }
-
-        public static string DetectFileSignature(string filePath, bool verbose = false)
-        {
-            const int READ_SIZE = 32;
-            try
-            {
-                using FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                int toRead = (int)Math.Min(READ_SIZE, fs.Length);
-                byte[] buffer = new byte[toRead];
-                int read = fs.Read(buffer, 0, toRead);
-                using MemoryStream ms = new MemoryStream(buffer, 0, read);
-                var inspector = new FileSignatures.FileFormatInspector();
-                var format = inspector.DetermineFileFormat(ms);
-                string result = format == null ? "unknown" : format.Extension.TrimStart('.').ToLower();
-                if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-SIGN] Signature for {Path.GetFileName(filePath)}: {result}", 3);
-                return result;
-            }
-            catch (UnauthorizedAccessException)
-            {
-                if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-SIGN] Access denied: {Path.GetFileName(filePath)}", 3);
-                return "<ACCESS_DENIED>";
-            }
-            catch (FileNotFoundException)
-            {
-                if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-SIGN] File not found: {Path.GetFileName(filePath)}", 3);
-                return "<FILE_NOT_FOUND>";
-            }
-            catch (IOException ex)
-            {
-                if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-SIGN] I/O error for {Path.GetFileName(filePath)}: {ex.Message}", 3);
-                return "<IO_ERROR>";
-            }
-            catch (Exception ex)
-            {
-                if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-SIGN] Unexpected error for {Path.GetFileName(filePath)}: {ex.GetType().Name}", 3);
-                return $"<ERROR_{ex.GetType().Name}>";
             }
         }
 
