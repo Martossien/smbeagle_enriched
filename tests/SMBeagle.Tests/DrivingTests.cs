@@ -21,6 +21,8 @@ public class DrivingTests
         Assert.Equal(2, Repo.Run("--option-inconnue").ExitCode);
         Assert.Equal(2, Repo.Run("--local-path", Repo.Fixtures).ExitCode); // aucune sortie (-c / -e)
         Assert.Equal(2, Repo.Run("--local-path", Repo.Fixtures, "-c", Path.Combine(Repo.TempDir(), "x.csv"), "-u", "seul").ExitCode);
+        Assert.Equal(2, Repo.Run("--local-path", Repo.Fixtures, "-c", Path.Combine(Repo.TempDir(), "x.csv"), "-a", "11").ExitCode);
+        Assert.Equal(2, Repo.Run("--local-path", Repo.Fixtures, "-c", Path.Combine(Repo.TempDir(), "x.csv"), "-g", "--file-pattern", "[invalide").ExitCode);
         Assert.Equal(0, Repo.Run("--help").ExitCode);
         Assert.Equal(0, Repo.Run("--version").ExitCode);
     }
