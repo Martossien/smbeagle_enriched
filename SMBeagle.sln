@@ -5,6 +5,10 @@ VisualStudioVersion = 16.0.31019.35
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SMBeagle", "SMBeagle.csproj", "{D21DBF8D-0BB4-491C-B400-32EEACD16792}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{078BBFA1-0916-4A5E-A9C1-9999E22B2502}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SMBeagle.Tests", "tests\SMBeagle.Tests\SMBeagle.Tests.csproj", "{C3957769-24EF-46DD-91B3-8FA9A962D0E4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,11 +19,18 @@ Global
 		{D21DBF8D-0BB4-491C-B400-32EEACD16792}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D21DBF8D-0BB4-491C-B400-32EEACD16792}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D21DBF8D-0BB4-491C-B400-32EEACD16792}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C3957769-24EF-46DD-91B3-8FA9A962D0E4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C3957769-24EF-46DD-91B3-8FA9A962D0E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C3957769-24EF-46DD-91B3-8FA9A962D0E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C3957769-24EF-46DD-91B3-8FA9A962D0E4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2BA0DE59-D954-42AB-9C3C-6FCEE3E0F0C1}
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{C3957769-24EF-46DD-91B3-8FA9A962D0E4} = {078BBFA1-0916-4A5E-A9C1-9999E22B2502}
 	EndGlobalSection
 EndGlobal
