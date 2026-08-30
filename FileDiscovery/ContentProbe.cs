@@ -1,8 +1,9 @@
-using SMBLibrary;
+﻿using SMBLibrary;
 using SMBLibrary.Client;
 using System;
 using System.IO;
 using System.IO.Hashing;
+using System.Threading;
 using SMBeagle.Output;
 
 namespace SMBeagle.FileDiscovery
@@ -57,15 +58,25 @@ namespace SMBeagle.FileDiscovery
             return total == max ? buffer : buffer[..total];
         }
 
-        /// <summary>Fichier local (chemin Windows ou POSIX).</summary>
-        public static Result ProbeLocal(string path, bool wantHash, bool wantSignature, bool verbose = false)
+        static long _accessTimeRestoreFailures;
+
+        /// <summary>Nombre de fichiers dont la date d'accès n'a pas pu être restaurée.</summary>
+        public static long AccessTimeRestoreFailures => Interlocked.Read(ref _accessTimeRestoreFailures);
+
+        /// <summary>
+        /// Fichier local (chemin Windows ou POSIX). Si <paramref name="restoreAccessTimeUtc"/>
+        /// est fourni, la date de dernier accès est remise à cette valeur après lecture
+        /// (nécessite le droit d'écrire les attributs ; sous Linux, d'être propriétaire).
+        /// </summary>
+        public static Result ProbeLocal(string path, bool wantHash, bool wantSignature, bool verbose = false, DateTime? restoreAccessTimeUtc = null)
         {
             if (!wantHash && !wantSignature)
                 return Result.Empty;
+            Result result;
             try
             {
                 using FileStream fs = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                return Probe(n => ReadHead(fs, n), wantHash, wantSignature);
+                result = Probe(n => ReadHead(fs, n), wantHash, wantSignature);
             }
             catch (Exception ex)
             {
@@ -73,16 +84,47 @@ namespace SMBeagle.FileDiscovery
                     OutputHelper.WriteError($"lecture impossible de '{path}' : {ex.GetType().Name} {ex.Message}");
                 return Result.Empty;
             }
+            if (restoreAccessTimeUtc.HasValue)
+            {
+                try
+                {
+                    System.IO.File.SetLastAccessTimeUtc(path, restoreAccessTimeUtc.Value);
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.Increment(ref _accessTimeRestoreFailures);
+                    if (verbose)
+                        OutputHelper.WriteError($"date d'accès non restaurée pour '{path}' : {ex.GetType().Name} {ex.Message}");
+                }
+            }
+            return result;
         }
 
-        /// <summary>Fichier distant via un ISMBFileStore déjà connecté au partage.</summary>
-        public static Result ProbeSmb(ISMBFileStore fileStore, string path, bool wantHash, bool wantSignature, bool verbose = false)
+        /// <summary>
+        /// Fichier distant via un ISMBFileStore déjà connecté au partage. Si
+        /// <paramref name="restoreAccessTime"/> est fourni, le fichier est ouvert avec
+        /// FILE_WRITE_ATTRIBUTES et la date d'accès est remise à cette valeur
+        /// (SetFileInformation / FileBasicInformation) avant fermeture du handle ;
+        /// sans ce droit on lit quand même et l'échec est compté.
+        /// </summary>
+        public static Result ProbeSmb(ISMBFileStore fileStore, string path, bool wantHash, bool wantSignature, bool verbose = false, DateTime? restoreAccessTime = null)
         {
             if (!wantHash && !wantSignature)
                 return Result.Empty;
             try
             {
-                NTStatus status = fileStore.CreateFile(out object handle, out _, path, AccessMask.GENERIC_READ, SMBLibrary.FileAttributes.Normal, ShareAccess.Read, CreateDisposition.FILE_OPEN, CreateOptions.FILE_NON_DIRECTORY_FILE | CreateOptions.FILE_SYNCHRONOUS_IO_ALERT, null);
+                bool canRestore = false;
+                object handle = null;
+                NTStatus status = NTStatus.STATUS_ACCESS_DENIED;
+                if (restoreAccessTime.HasValue)
+                {
+                    status = OpenForRead(fileStore, path, AccessMask.GENERIC_READ | (AccessMask)FileAccessMask.FILE_WRITE_ATTRIBUTES, out handle);
+                    canRestore = status == NTStatus.STATUS_SUCCESS;
+                    if (!canRestore)
+                        Interlocked.Increment(ref _accessTimeRestoreFailures);
+                }
+                if (!canRestore)
+                    status = OpenForRead(fileStore, path, AccessMask.GENERIC_READ, out handle);
                 if (status != NTStatus.STATUS_SUCCESS)
                 {
                     if (verbose)
@@ -91,7 +133,19 @@ namespace SMBeagle.FileDiscovery
                 }
                 try
                 {
-                    return Probe(n => ReadSmbHead(fileStore, handle, n), wantHash, wantSignature);
+                    Result result = Probe(n => ReadSmbHead(fileStore, handle, n), wantHash, wantSignature);
+                    if (canRestore)
+                    {
+                        var info = new FileBasicInformation { LastAccessTime = new SetFileTime(restoreAccessTime) };
+                        NTStatus restored = fileStore.SetFileInformation(handle, info);
+                        if (restored != NTStatus.STATUS_SUCCESS)
+                        {
+                            Interlocked.Increment(ref _accessTimeRestoreFailures);
+                            if (verbose)
+                                OutputHelper.WriteError($"date d'accès SMB non restaurée pour '{path}' : {restored}");
+                        }
+                    }
+                    return result;
                 }
                 finally
                 {
@@ -104,6 +158,11 @@ namespace SMBeagle.FileDiscovery
                     OutputHelper.WriteError($"lecture SMB impossible de '{path}' : {ex.GetType().Name} {ex.Message}");
                 return Result.Empty;
             }
+        }
+
+        static NTStatus OpenForRead(ISMBFileStore fileStore, string path, AccessMask access, out object handle)
+        {
+            return fileStore.CreateFile(out handle, out _, path, access, SMBLibrary.FileAttributes.Normal, ShareAccess.Read, CreateDisposition.FILE_OPEN, CreateOptions.FILE_NON_DIRECTORY_FILE | CreateOptions.FILE_SYNCHRONOUS_IO_ALERT, null);
         }
 
         static byte[] ReadSmbHead(ISMBFileStore fileStore, object handle, int max)

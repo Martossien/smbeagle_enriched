@@ -110,9 +110,10 @@ namespace SMBeagle.FileDiscovery
             DateTime creationTime = file.CreationTime;
             DateTime lastWriteTime = file.LastWriteTime;
             DateTime accessTime = opts.IncludeAccessTime ? file.LastAccessTime : default;
+            DateTime? restoreAccessTimeUtc = opts.PreserveAccessTime && opts.ReadsContent ? file.LastAccessTimeUtc : null;
             long size = opts.IncludeFileSize ? file.Length : 0;
             string attributes = opts.IncludeFileAttributes ? file.Attributes.ToString() : "";
-            ContentProbe.Result probe = ContentProbe.ProbeLocal(file.FullName, opts.IncludeFastHash, opts.IncludeFileSignature, opts.Verbose);
+            ContentProbe.Result probe = ContentProbe.ProbeLocal(file.FullName, opts.IncludeFastHash, opts.IncludeFileSignature, opts.Verbose, restoreAccessTimeUtc);
             return new File(
                 parentDirectory: this,
                 name: file.Name,
@@ -198,7 +199,8 @@ namespace SMBeagle.FileDiscovery
                             // Métadonnées issues de QueryDirectory, donc antérieures à toute lecture du contenu
                             DateTime accessTime = opts.IncludeAccessTime ? d.LastAccessTime : default;
                             string owner = opts.IncludeFileOwner ? "<NOT_SUPPORTED>" : string.Empty;
-                            ContentProbe.Result probe = ContentProbe.ProbeSmb(fileStore, path, opts.IncludeFastHash, opts.IncludeFileSignature, opts.Verbose);
+                            DateTime? restoreAccessTime = opts.PreserveAccessTime && opts.ReadsContent ? d.LastAccessTime : null;
+                            ContentProbe.Result probe = ContentProbe.ProbeSmb(fileStore, path, opts.IncludeFastHash, opts.IncludeFileSignature, opts.Verbose, restoreAccessTime);
                             Files.Add(
                                 new File(
                                     parentDirectory: this,

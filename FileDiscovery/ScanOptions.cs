@@ -1,4 +1,4 @@
-using SMBeagle.ShareDiscovery;
+﻿using SMBeagle.ShareDiscovery;
 using System.Collections.Generic;
 
 namespace SMBeagle.FileDiscovery
@@ -26,6 +26,8 @@ namespace SMBeagle.FileDiscovery
         public bool IncludeFileOwner { get; init; }
         public bool IncludeFastHash { get; init; }
         public bool IncludeFileSignature { get; init; }
+        /// <summary>Restaurer la date de dernier accès après lecture du contenu.</summary>
+        public bool PreserveAccessTime { get; init; }
 
         public bool IsLocalScan => LocalPaths.Count > 0;
 
