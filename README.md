@@ -121,7 +121,7 @@ Avec cette option, **stdout ne contient que des lignes JSON** (une par ligne, UT
 
 ```json
 {
-  "version": "4.1.0",
+  "version": "4.2.0",
   "started_at": "2026-08-30T19:49:03.1328939+02:00",
   "finished_at": "2026-08-30T19:49:03.2996582+02:00",
   "options": {
