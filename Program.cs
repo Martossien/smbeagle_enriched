@@ -157,7 +157,7 @@ namespace SMBeagle
                     OutputHelper.WriteLine($"Using the provided regexes", 1);
                 }
             }
-            else
+            else if (!opts.Quiet)
             {
                 OutputHelper.WriteLine($"Will NOT Grab files - rerun and use the '-g' flag to grab them if needed");
             }
