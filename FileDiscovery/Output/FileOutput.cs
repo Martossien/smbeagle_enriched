@@ -9,6 +9,15 @@ namespace SMBeagle.FileDiscovery.Output
 {
     class FileOutput : IOutputPayload
     {
+        /// <summary>Les 19 colonnes du CSV, dans l'ordre des propriétés ci-dessous (contrat docia).</summary>
+        public static readonly string[] Columns =
+        {
+            nameof(Name), nameof(Host), nameof(Extension), nameof(Username), nameof(Hostname), nameof(UNCDirectory),
+            nameof(CreationTime), nameof(LastWriteTime), nameof(Readable), nameof(Writeable), nameof(Deletable),
+            nameof(DirectoryType), nameof(Base), nameof(FileSize), nameof(AccessTime), nameof(FileAttributes),
+            nameof(Owner), nameof(FastHash), nameof(FileSignature),
+        };
+
         public string Name { get; set; }
         public string Host { get; set; }
         public string Extension { get; set; }

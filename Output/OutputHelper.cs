@@ -6,6 +6,7 @@ using Serilog.Formatting.Json;
 using Serilog.Sinks.Elasticsearch;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -162,6 +163,9 @@ namespace SMBeagle.Output
 
         const char CSV_SEPERATOR = ',';
 
+        /// <summary>Rendu des DateTime dans le CSV (contrat lu par docia).</summary>
+        public const string DATE_FORMAT = "dd/MM/yyyy HH:mm:ss";
+
         #endregion
 
         #region State
@@ -218,15 +222,24 @@ namespace SMBeagle.Output
         /// </summary>
         static void WriteField(LogEventPropertyValue value, TextWriter output)
         {
-            if (value is ScalarValue { Value: string text })
+            switch (value)
             {
-                output.Write('"');
-                output.Write(text.Replace("\"", "\"\""));
-                output.Write('"');
-            }
-            else
-            {
-                output.Write(value);
+                case ScalarValue { Value: string text }:
+                    output.Write('"');
+                    output.Write(text.Replace("\"", "\"\""));
+                    output.Write('"');
+                    break;
+                case ScalarValue { Value: DateTime stamp }:
+                    // Format fixe, indépendant de la culture : c'est celui que docia lit
+                    // (une culture en-US donnerait « 8/30/2026 5:37:47 PM », illisible).
+                    output.Write(stamp.ToString(DATE_FORMAT, CultureInfo.InvariantCulture));
+                    break;
+                case ScalarValue { Value: IFormattable formattable }:
+                    output.Write(formattable.ToString(null, CultureInfo.InvariantCulture));
+                    break;
+                default:
+                    output.Write(value);
+                    break;
             }
         }
 

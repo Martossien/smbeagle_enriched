@@ -1,3 +1,4 @@
+using System.Globalization;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
@@ -102,6 +103,35 @@ public class CsvContractTests
         Assert.Single(lines, l => l == string.Join(",", Csv.Header));
         var again = Render(MakeFile("c.pdf", @"\\s\p\d"));
         Assert.Equal(2, again.Length);
+    }
+
+    [Fact]
+    public void Dates_au_format_fixe_dd_MM_yyyy_HH_mm_ss_quelle_que_soit_la_culture()
+    {
+        var saved = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
+        try
+        {
+            foreach (var culture in new[] { "en-US", "fr-FR", "de-DE", "" })
+            {
+                CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(culture);
+                var fields = Csv.Split(Render(MakeFile("a.pdf", @"\\s\p\d"))[1]);
+                Assert.Equal("05/03/2024 14:07:09", fields[6]);
+                Assert.Equal("05/03/2024 14:07:09", fields[7]);
+                Assert.Equal("05/03/2024 14:07:09", fields[14]);
+                Assert.Equal("1234", fields[13]);
+            }
+        }
+        finally
+        {
+            (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture) = saved;
+        }
+    }
+
+    [Fact]
+    public void Liste_des_colonnes_exposee_egale_a_l_en_tete_reel()
+    {
+        Assert.Equal(Csv.Header, FileOutput.Columns);
+        Assert.Equal(Csv.Header, Csv.Split(Render(MakeFile("a.pdf", @"\\s\p\d"))[0]));
     }
 
     [Fact]
