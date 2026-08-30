@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Diagnostics.CodeAnalysis;
 
@@ -130,6 +131,33 @@ namespace SMBeagle
             if (opts.CsvFile != null)
                 OutputHelper.EnableCSVLogging(opts.CsvFile, username);
 
+            // Motifs de récupération (-g) : valeur par défaut amont, ou ceux fournis, validés avant tout scan
+            List<string> filePatterns = new List<string> { ".*(password|config|credentials|creds).*", ".*(ps1|bat|vbs|sh|cmd)$" };
+            if (opts.GrabFiles)
+            {
+                OutputHelper.WriteLine($"We will grab files and store them in {opts.OutputDirectory} directory");
+                if (opts.FilePatterns.Any())
+                {
+                    filePatterns = opts.FilePatterns.ToList();
+                    foreach (string pattern in filePatterns)
+                    {
+                        try
+                        {
+                            _ = Regex.IsMatch("", pattern);
+                        }
+                        catch (ArgumentException)
+                        {
+                            return Fail(ExitCodes.ArgumentError, $"ERROR: Provided regex pattern '{pattern}' is invalid");
+                        }
+                    }
+                    OutputHelper.WriteLine($"Using the provided regexes", 1);
+                }
+            }
+            else
+            {
+                OutputHelper.WriteLine($"Will NOT Grab files - rerun and use the '-g' flag to grab them if needed");
+            }
+
             // Handle local path scanning
             if (localScan)
             {
@@ -137,13 +165,6 @@ namespace SMBeagle
                 OutputHelper.WriteLine("Performing local directory scan as --local-path is specified...");
                 if (opts.Networks.Any() || opts.Hosts.Any() || opts.ScanLocalShares)
                     OutputHelper.WriteLine("WARNING: --local-path is mutually exclusive with network options. Network options ignored.", 1);
-
-                List<string> filePatterns = new List<string> { ".*(password|config|credentials|creds).*", ".*(ps1|bat|vbs|sh|cmd)$" };
-                if (opts.FilePatterns.Any())
-                {
-                    filePatterns = opts.FilePatterns.ToList();
-                    OutputHelper.WriteLine($"Using the provided regexes", 1);
-                }
 
                 FileFinder ffLocal = new(BuildScanOptions(opts, new List<Share>(), filePatterns, crossPlatform));
                 manifest.Targets.AddRange(ffLocal.Directories.Where(d => d.Parent == null).Select(d => d.Path));
@@ -388,25 +409,8 @@ namespace SMBeagle
             OutputHelper.WriteLine("6. Enumerating accessible shares, this can be slow...");
             ProgressReporter.Current?.Stage(ProgressReporter.STAGE_FILES);
 
-            List<String> networkFilePatterns = new List<string> { ".*(password|config|credentials|creds).*", ".*(ps1|bat|vbs|sh|cmd)$" };
-
-
-            if (opts.GrabFiles)
-            {
-                OutputHelper.WriteLine($"Grabbing files and storing them in {opts.OutputDirectory}", 1);
-                if (opts.FilePatterns.Any())
-                {
-                    networkFilePatterns = opts.FilePatterns.ToList();
-                    OutputHelper.WriteLine($"Using the provided regexes", 1);
-                }
-            }
-            else
-            {
-                OutputHelper.WriteLine($"NOT Grabbing files - use the '-g' flag to grab them if needed", 1);
-            }
-
             // Find files on all the shares
-            FileFinder ff = new(BuildScanOptions(opts, shares, networkFilePatterns, crossPlatform));
+            FileFinder ff = new(BuildScanOptions(opts, shares, filePatterns, crossPlatform));
             manifest.Files = ff.FileCount;
 
             return Finish(opts, manifest);

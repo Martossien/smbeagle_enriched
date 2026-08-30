@@ -366,23 +366,20 @@ namespace SMBeagle.FileDiscovery
 
         private void FetchFile(File file, bool crossPlatform, string outputDirectory)
         {
-            string filename;
-            if (!crossPlatform)
-#pragma warning disable CA1416
+            // Même nom de sortie sur les deux chemins (le chemin Windows préfixait deux fois le répertoire de butin)
+            string outputFilename = $"{file.ParentDirectory.Share.uncPath}{file.FullName}".Replace("\\", "_").Replace("/", "_");
+            outputFilename = $"{outputDirectory}{Path.DirectorySeparatorChar}{outputFilename}";
+            try
             {
-                // TODO: Add windows method
-                filename = $"{outputDirectory}{Path.DirectorySeparatorChar}{file.FullName}".Replace("\\", "_").Replace("/", "_");
-                filename = $"{outputDirectory}{Path.DirectorySeparatorChar}{filename}";
-                WindowsHelper.RetrieveFile(file, filename);
+                if (!crossPlatform && OperatingSystem.IsWindows())
+                    WindowsHelper.RetrieveFile(file, outputFilename);
+                else
+                    CrossPlatformHelper.RetrieveFile(file, outputFilename);
             }
-#pragma warning restore CA1416
-            else
+            catch (Exception ex)
             {
-                filename = $"{file.ParentDirectory.Share.uncPath}{file.FullName}".Replace("\\", "_").Replace("/", "_");
-                filename = $"{outputDirectory}{Path.DirectorySeparatorChar}{filename}";
-                CrossPlatformHelper.RetrieveFile(file, filename);
+                OutputHelper.WriteError($"récupération de '{file.FullName}' impossible : {ex.GetType().Name} {ex.Message}");
             }
-
         }
     }
 }
