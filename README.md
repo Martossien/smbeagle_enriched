@@ -69,7 +69,8 @@ SMBeagle.exe -c resultats.csv --sizefile --access-time --fasthash --file-signatu
 ```
 
 Les options amont restent inchangées (`-n`, `-h`, `-N`, `-H`, `-s`, `-S`, `-E`, `-D`, `-A`, `-f`, `-g`, `--loot`,
-`--file-pattern`, `-e`, `-q`, `-v`...) : `SMBeagle --help` les liste toutes.
+`--file-pattern`, `-e`, `-q`, `-v`...) : `SMBeagle --help` les liste toutes. `-a` / `--aggression` (1 à 10, défaut 6)
+règle le délai de sonde TCP 445 : `1010 - 100 × a` ms par hôte (commit amont #100).
 
 ### Scan de dossiers locaux
 

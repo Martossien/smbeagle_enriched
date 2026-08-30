@@ -119,6 +119,10 @@ namespace SMBeagle
             if (opts.CsvFile == null && opts.ElasticsearchHost == null)
                 return Fail(ExitCodes.ArgumentError, "ERROR: an output is required (-c csv file and/or -e elasticsearch host)");
 
+            if (opts.Aggression < 1 || opts.Aggression > 10)
+                return Fail(ExitCodes.ArgumentError, $"ERROR: Aggression should be between 1 and 10, not '{opts.Aggression}'");
+            Host.PORT_MAX_WAIT_MS = 1010 - (100 * opts.Aggression);
+
             String username = "";
             if (opts.Username != null)
                 username = opts.Username;
@@ -475,6 +479,9 @@ namespace SMBeagle
 
             [Option('e', "elasticsearch-host", Group = "output", Required = false, HelpText = "Output results to elasticsearch by providing elasticsearch hostname (default port is 9200 , but can be overridden)")]
             public string ElasticsearchHost { get; set; }
+
+            [Option('a', "aggression", Required = false, Default = 6, HelpText = "Vary scanning speed in a range between 1 and 10. 10 being fastest [No decimals]")]
+            public int Aggression { get; set; }
 
             [Option("elasticsearch-port", Required = false, Default = "9200", HelpText = "Define the elasticsearch custom port if required")]
             public string ElasticsearchPort { get; set; }
