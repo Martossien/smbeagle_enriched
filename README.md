@@ -21,7 +21,7 @@ Toute l'énumération SMB, le contrôle des permissions et la sortie CSV / Elast
 | `--fileattributes` | Attributs du système de fichiers | complet | basique |
 | `--ownerfile` | Propriétaire (`DOMAINE\utilisateur`, ou `utilisateur:groupe` en local Linux) | oui | local uniquement, `<NOT_SUPPORTED>` en SMB |
 | `--fasthash` | xxHash64 des 64 premiers Ko | oui | oui |
-| `--file-signature` | Type détecté par nombres magiques (32 premiers octets) | oui | oui |
+| `--file-signature` | Type détecté par nombres magiques et structure de l'en-tête (64 premiers Ko) | oui | oui |
 | `--preserve-access-time` | Remet la date d'accès après lecture du contenu | oui | oui (voir limites) |
 | `--progress-json` | Progression JSON sur stdout | oui | oui |
 | `--manifest <fichier.json>` | Manifeste de scan en fin d'exécution | oui | oui |
@@ -168,8 +168,10 @@ Name,Host,Extension,Username,Hostname,UNCDirectory,CreationTime,LastWriteTime,Re
 - En `--local-path` : `Host` vaut `localhost`, `Base` vaut `\\localhost\LOCAL_SCAN\`, `DirectoryType` vaut `LOCAL_FIXED`,
   `UNCDirectory` est le chemin absolu du dossier.
 - `FastHash` : xxHash64 (16 caractères hexadécimaux) des 64 premiers Ko ; `FileSignature` : extension détectée
-  (`pdf`, `png`, ...) ou `unknown`. Si le fichier n'est pas lisible, les deux valeurs sont **vides** (docia exclut
-  un `FastHash` vide de ses familles de doublons) et l'erreur est journalisée sur stderr en `-v`.
+  sur ces mêmes 64 Ko (`pdf`, `png`, `doc`, `xls`, `docx`, ...), `ole` pour un fichier composé OLE2 (doc/xls/ppt)
+  dont la structure dépasse l'en-tête lu, ou `unknown`. Si le fichier n'est pas lisible, les deux valeurs sont
+  **vides** (docia exclut un `FastHash` vide de ses familles de doublons) et l'erreur est journalisée sur stderr
+  en `-v` ; un échec de la seule détection de signature ne vide jamais le hash.
 - Une option non demandée laisse sa colonne à sa valeur neutre (`0`, date `01/01/0001 00:00:00`, chaîne vide).
 
 Le CSV d'or `tests/golden/scan_19col.csv` est produit par un scan de `tests/fixtures` ; `scripts/check.sh` le
@@ -197,8 +199,8 @@ mise à jour des dates d'accès est désactivée (`NtfsDisableLastAccessUpdate`)
 - `--ownerfile` en SMB cross-platform (Linux ou identifiants explicites) rend `<NOT_SUPPORTED>`.
 - `--preserve-access-time` sur SMB cross-platform est implémenté via SMBLibrary mais n'est pas couvert par la CI
   (pas de serveur SMB) ; en local il est testé sous Linux et Windows.
-- Le hash porte sur les 64 premiers Ko et la signature sur 32 octets : deux fichiers de même en-tête et de même
-  taille forment une famille de doublons dans docia sans être forcément identiques.
+- Le hash et la signature portent sur les 64 premiers Ko : deux fichiers de même en-tête et de même taille
+  forment une famille de doublons dans docia sans être forcément identiques.
 - Elasticsearch n'est pas testé par la CI.
 
 ## Développement

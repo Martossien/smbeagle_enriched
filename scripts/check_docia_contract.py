@@ -63,11 +63,11 @@ def main() -> int:
     assert len(HEADER) == 19
     exe = find_executable()
     problems: list[str] = []
-    problems += check_csv("CSV d'or", ROOT / "tests" / "golden" / "scan_19col.csv", 5)
+    problems += check_csv("CSV d'or", ROOT / "tests" / "golden" / "scan_19col.csv", 7)
     with tempfile.TemporaryDirectory() as tmp:
         fresh = Path(tmp) / "fixtures.csv"
         scan(exe, ROOT / "tests" / "fixtures", fresh)
-        problems += check_csv("scan des fixtures", fresh, 5)
+        problems += check_csv("scan des fixtures", fresh, 7)
 
         special = Path(tmp) / "Dossier Été, archivé"
         special.mkdir()

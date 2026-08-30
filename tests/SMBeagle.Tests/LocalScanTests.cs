@@ -24,14 +24,16 @@ public class LocalScanTests
     }
 
     [Fact]
-    public void Scan_local_produit_19_colonnes_et_les_5_fixtures()
+    public void Scan_local_produit_19_colonnes_et_les_7_fixtures()
     {
         var rows = ScanFixtures(out _);
-        Assert.Equal(5, rows.Count);
+        Assert.Equal(7, rows.Count);
         var byName = rows.ToDictionary(r => r["Name"]);
-        Assert.Equal(new[] { "config.ini", "logo.png", "notes réunion.txt", "rapport financier 2024.pdf", "vide.txt" },
+        Assert.Equal(new[] { "ancien rapport.doc", "config.ini", "logo.png", "notes réunion.txt", "rapport financier 2024.pdf", "tableau 2019.xls", "vide.txt" },
             byName.Keys.OrderBy(k => k, StringComparer.Ordinal));
         Assert.Equal("pdf", byName["rapport financier 2024.pdf"]["FileSignature"]);
+        Assert.Equal("doc", byName["ancien rapport.doc"]["FileSignature"]);
+        Assert.Equal("xls", byName["tableau 2019.xls"]["FileSignature"]);
         Assert.Equal("png", byName["logo.png"]["FileSignature"]);
         Assert.Equal("unknown", byName["vide.txt"]["FileSignature"]);
         Assert.Equal("0", byName["vide.txt"]["FileSize"]);
@@ -95,6 +97,6 @@ public class LocalScanTests
         string csv = Path.Combine(Repo.TempDir(), "scan.csv");
         var run = Repo.Run("--local-path", Repo.Fixtures, "-c", csv, "-q");
         Assert.Equal(0, run.ExitCode);
-        Assert.Equal(5, Csv.ReadRows(csv).Count);
+        Assert.Equal(7, Csv.ReadRows(csv).Count);
     }
 }

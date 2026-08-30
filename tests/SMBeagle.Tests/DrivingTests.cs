@@ -65,7 +65,7 @@ public class DrivingTests
         Assert.Equal(new[] { "files", "writing" }, stages.Distinct());
         var done = events[^1].RootElement;
         Assert.Equal("done", done.GetProperty("event").GetString());
-        Assert.Equal(5, done.GetProperty("files").GetInt64());
+        Assert.Equal(7, done.GetProperty("files").GetInt64());
         Assert.Equal(Path.GetFullPath(csv), done.GetProperty("csv").GetString());
         Assert.True(done.GetProperty("elapsed_s").GetDouble() >= 0);
     }
@@ -111,11 +111,11 @@ public class DrivingTests
         Assert.Equal("***", options.GetProperty("password").GetString());
         Assert.Equal("9200", options.GetProperty("elasticsearch-port").GetString());
         Assert.Equal(new[] { Path.GetFullPath(Repo.Fixtures) }, root.GetProperty("targets").EnumerateArray().Select(t => t.GetString()));
-        Assert.Equal(5, root.GetProperty("counts").GetProperty("files").GetInt64());
+        Assert.Equal(7, root.GetProperty("counts").GetProperty("files").GetInt64());
         Assert.Equal(0, root.GetProperty("counts").GetProperty("hosts").GetInt64());
         Assert.Equal(Path.GetFullPath(csv), root.GetProperty("csv").GetString());
         Assert.Equal(Csv.Header, root.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToArray());
-        Assert.Equal(5, Csv.ReadRows(csv).Count);
+        Assert.Equal(7, Csv.ReadRows(csv).Count);
     }
 
     [Fact]

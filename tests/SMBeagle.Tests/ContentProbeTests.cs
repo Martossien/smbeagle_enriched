@@ -26,6 +26,40 @@ public class ContentProbeTests
     }
 
     [Fact]
+    public void Fichiers_Office_OLE2_ont_un_hash_et_une_signature_doc_xls()
+    {
+        // Régression : FileSignatures lève CFCorruptedFileException sur 32 octets d'un
+        // fichier OLE2 ; l'exception vidait aussi le hash.
+        var doc = ContentProbe.ProbeLocal(Fixture(Path.Combine("dossier été", "ancien rapport.doc")), true, true);
+        Assert.Matches("^[0-9a-f]{16}$", doc.FastHash);
+        Assert.Equal("doc", doc.FileSignature);
+        var xls = ContentProbe.ProbeLocal(Fixture("tableau 2019.xls"), true, true);
+        Assert.Matches("^[0-9a-f]{16}$", xls.FastHash);
+        Assert.Equal("xls", xls.FileSignature);
+    }
+
+    [Fact]
+    public void OLE2_dont_la_structure_depasse_l_en_tete_donne_ole_et_le_hash_est_conserve()
+    {
+        // Un .ppt de 650 Ko a son répertoire au-delà des 64 Ko lus : on simule avec un
+        // .doc tronqué à 1 Ko (en-tête OLE2 valide, structure incomplète).
+        byte[] tronque = System.IO.File.ReadAllBytes(Fixture("tableau 2019.xls"))[..1024];
+        Assert.Equal("ole", ContentProbe.Signature(tronque));
+        var probe = ContentProbe.Probe(n => tronque, true, true);
+        Assert.Matches("^[0-9a-f]{16}$", probe.FastHash);
+        Assert.Equal("ole", probe.FileSignature);
+    }
+
+    [Fact]
+    public void Signature_ne_leve_jamais_meme_sur_un_en_tete_tronque_ou_vide()
+    {
+        Assert.Equal("unknown", ContentProbe.Signature(Array.Empty<byte>()));
+        Assert.Equal("unknown", ContentProbe.Signature(new byte[] { 0xD0, 0xCF }));
+        byte[] zipTronque = { 0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00 };
+        Assert.Equal("zip", ContentProbe.Signature(zipTronque));
+    }
+
+    [Fact]
     public void Fichier_vide_a_le_hash_xxhash64_de_zero_octet_et_signature_unknown()
     {
         var probe = ContentProbe.ProbeLocal(Fixture("vide.txt"), true, true);

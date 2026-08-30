@@ -10,16 +10,21 @@ namespace SMBeagle.FileDiscovery
 {
     /// <summary>
     /// Lecture unique de l'en-tête d'un fichier (64 Ko max) dont on dérive le
-    /// hash rapide (xxHash64) et la signature (nombres magiques, 32 premiers
-    /// octets). Une seule implémentation, paramétrée par un lecteur : fichier
-    /// local (Windows ou Linux) ou SMB via SMBLibrary.
-    /// En cas d'erreur les deux valeurs sont vides : docia ignore un FastHash
-    /// vide pour ses familles de doublons, un marqueur textuel les fausserait.
+    /// hash rapide (xxHash64) et la signature (nombres magiques). Une seule
+    /// implémentation, paramétrée par un lecteur : fichier local (Windows ou
+    /// Linux) ou SMB via SMBLibrary.
+    /// Si le fichier est illisible les deux valeurs sont vides : docia ignore un
+    /// FastHash vide pour ses familles de doublons, un marqueur textuel les
+    /// fausserait. Un échec de la seule détection de signature ne touche pas
+    /// au hash.
     /// </summary>
     static class ContentProbe
     {
         public const int FAST_HASH_BYTES = 65536;
+        /// <summary>Repli pour la signature : nombres magiques seuls, sans structure.</summary>
         public const int SIGNATURE_BYTES = 32;
+        /// <summary>En-tête OLE2 / Compound File Binary (doc, xls, ppt, msg, vsd).</summary>
+        static readonly byte[] OLE2_MAGIC = { 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 };
 
         public readonly record struct Result(string FastHash, string FileSignature)
         {
@@ -31,17 +36,45 @@ namespace SMBeagle.FileDiscovery
         {
             if (!wantHash && !wantSignature)
                 return Result.Empty;
-            byte[] head = readHead(wantHash ? FAST_HASH_BYTES : SIGNATURE_BYTES) ?? Array.Empty<byte>();
+            // La signature aussi a besoin de l'en-tête complet : les formats OLE2 (doc,
+            // xls, ppt) et zip (docx, xlsx, odt) s'identifient par leur structure.
+            byte[] head = readHead(FAST_HASH_BYTES) ?? Array.Empty<byte>();
             string hash = wantHash ? XxHash64.HashToUInt64(head).ToString("x16") : string.Empty;
             string signature = wantSignature ? Signature(head) : string.Empty;
             return new Result(hash, signature);
         }
 
-        static string Signature(byte[] head)
+        /// <summary>
+        /// Extension détectée (« pdf », « doc », « docx »...), « ole » pour un fichier
+        /// composé OLE2 dont la structure dépasse l'en-tête lu, « unknown » sinon.
+        /// Ne lève jamais : la bibliothèque FileSignatures analyse la structure des
+        /// conteneurs et lève une exception sur un en-tête tronqué (CFCorruptedFileException
+        /// sur 32 octets d'un .doc, CFException sur un .ppt dont le répertoire est au-delà
+        /// de 64 Ko).
+        /// </summary>
+        public static string Signature(byte[] head)
         {
-            using MemoryStream ms = new(head, 0, Math.Min(head.Length, SIGNATURE_BYTES));
-            var format = new FileSignatures.FileFormatInspector().DetermineFileFormat(ms);
-            return format == null ? "unknown" : format.Extension.TrimStart('.').ToLower();
+            string detected = TryInspect(head, head.Length);
+            if (detected != null)
+                return detected;
+            if (head.Length >= OLE2_MAGIC.Length && head.AsSpan(0, OLE2_MAGIC.Length).SequenceEqual(OLE2_MAGIC))
+                return "ole";
+            // Repli : nombres magiques seuls (comportement historique sur 32 octets)
+            return TryInspect(head, Math.Min(head.Length, SIGNATURE_BYTES)) ?? "unknown";
+        }
+
+        static string TryInspect(byte[] head, int length)
+        {
+            try
+            {
+                using MemoryStream ms = new(head, 0, length);
+                var format = new FileSignatures.FileFormatInspector().DetermineFileFormat(ms);
+                return format == null ? "unknown" : format.Extension.TrimStart('.').ToLower();
+            }
+            catch (Exception)
+            {
+                return null; // en-tête insuffisant pour ce format : l'appelant se replie
+            }
         }
 
         public static byte[] ReadHead(Stream stream, int max)
