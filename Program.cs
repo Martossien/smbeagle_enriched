@@ -34,7 +34,10 @@ namespace SMBeagle
             else
                 Console.WriteLine("SMBeagle by PunkSecurity [punksecurity.co.uk]");
 
-            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            bool localScan = opts.LocalPaths != null && opts.LocalPaths.Any();
+
+            // Un scan --local-path ne parle pas SMB : pas d'identifiants requis, même hors Windows.
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && !localScan)
             {
                 // TODO: should we have an enum for exit codes?
                 if (opts.Username == null || opts.Password == null)
@@ -74,7 +77,7 @@ namespace SMBeagle
                 OutputHelper.EnableCSVLogging(opts.CsvFile, username);
 
             // Handle local path scanning
-            if (opts.LocalPaths != null && opts.LocalPaths.Any())
+            if (localScan)
             {
                 OutputHelper.WriteLine("Performing local directory scan as --local-path is specified...");
                 if (opts.Networks.Any() || opts.Hosts.Any() || opts.ScanLocalShares)
