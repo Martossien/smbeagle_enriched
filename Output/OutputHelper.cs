@@ -158,9 +158,9 @@ namespace SMBeagle.Output
 
         #endregion
 
-        #region Static
+        #region State
 
-        private static bool _headersWritten = false;
+        private bool _headersWritten = false;
 
         #endregion
 
@@ -187,7 +187,7 @@ namespace SMBeagle.Output
 
                 for (int i = 0; i < properties.Count; i++)
                 {
-                    output.Write(properties[i].Value);
+                    WriteField(properties[i].Value, output);
 
                     if (i < properties.Count - 1)
                         output.Write(CSV_SEPERATOR);
@@ -198,6 +198,29 @@ namespace SMBeagle.Output
             catch
             {
                 // Intentionally empty
+            }
+        }
+
+        #endregion
+
+        #region Private methods
+
+        /// <summary>
+        /// Contrat CSV : seules les chaînes sont entre guillemets, un guillemet
+        /// interne est doublé (RFC 4180, ce que décode le parseur docia). Les
+        /// autres types (DateTime, bool, long, enum) sont rendus nus, comme avant.
+        /// </summary>
+        static void WriteField(LogEventPropertyValue value, TextWriter output)
+        {
+            if (value is ScalarValue { Value: string text })
+            {
+                output.Write('"');
+                output.Write(text.Replace("\"", "\"\""));
+                output.Write('"');
+            }
+            else
+            {
+                output.Write(value);
             }
         }
 
