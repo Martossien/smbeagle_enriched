@@ -49,6 +49,12 @@ Une image Docker se construit depuis les sources : `docker build -t smbeagle .`
 
 ## Utilisation
 
+### Mode standard : scan local sur un poste Windows (`--local-path`)
+
+C'est le mode utilisé et validé pour l'audit Doc-IA : SMBeagle tourne sur un poste Windows et scanne un dossier
+ou un **lecteur réseau mappé** (`D:\partage`, `Z:\`). Propriétaires (`--ownerfile`), attributs (`--fileattributes`)
+et dates sont lus via les API Win32, sans identifiants SMB.
+
 ### Appel « pour docia » (scan local, toutes les métadonnées)
 
 ```cmd
@@ -58,7 +64,11 @@ SMBeagle.exe --local-path D:\partage --sizefile --access-time --fileattributes -
 docia lit les lignes JSON sur stdout, le CSV et le manifeste à la fin, et se fie au code de retour.
 Le même appel fonctionne sous Linux (`./SMBeagle --local-path /srv/partage ...`), sans identifiants.
 
-### Scan réseau SMB (fonctionnalité amont)
+### Scan réseau SMB (fonctionnalité amont, non validée pour l'audit)
+
+Disponible mais **pas validé pour l'audit Doc-IA** : découverte réseau, `--host` / `--share` avec identifiants
+(SMBLibrary). Le contrat CSV est le même, mais `--ownerfile` rend `<NOT_SUPPORTED>` en cross-platform et les
+dates SMB sont en UTC.
 
 ```bash
 # Windows, authentification intégrée
@@ -164,7 +174,8 @@ Name,Host,Extension,Username,Hostname,UNCDirectory,CreationTime,LastWriteTime,Re
 - Guillemets sélectifs : les colonnes texte (`Name`, `Host`, `Extension`, `Username`, `Hostname`, `UNCDirectory`,
   `Base`, `FileAttributes`, `Owner`, `FastHash`, `FileSignature`) sont entre guillemets, un guillemet interne est
   doublé (`""`, RFC 4180) ; les DateTime, booléens, entiers et énumérations sont nus.
-- Dates au format fixe `dd/MM/yyyy HH:mm:ss`, quelle que soit la culture de la machine.
+- Dates au format fixe `dd/MM/yyyy HH:mm:ss`, quelle que soit la culture de la machine (**changement depuis
+  4.0.1.1**, qui suivait la culture du poste : `M/d/yyyy h:mm:ss tt` en en-US, `MM/dd/yyyy` en build invariante).
 - `Extension` en minuscules sans point ; `Name` et `UNCDirectory` conservent la casse.
 - En `--local-path` : `Host` vaut `localhost`, `Base` vaut `\\localhost\LOCAL_SCAN\`, `DirectoryType` vaut `LOCAL_FIXED`,
   `UNCDirectory` est le chemin absolu du dossier.
@@ -192,14 +203,18 @@ successifs et les statistiques « fichiers non accédés depuis X ans » restent
   fichier est quand même lu ;
 - SMB en authentification intégrée Windows : les fichiers sont ouverts par chemin UNC, même mécanisme que le local.
 
-Les échecs sont comptés et résumés sur stderr en fin de scan (`-v` pour le détail). Sur des volumes NTFS où la
-mise à jour des dates d'accès est désactivée (`NtfsDisableLastAccessUpdate`), l'option est sans effet.
+Les échecs sont comptés et résumés sur stderr en fin de scan (`-v` pour le détail), **jamais bloquants** : sur un
+lecteur mappé en lecture seule, la restauration est impossible (droit `FILE_WRITE_ATTRIBUTES` requis) mais la
+colonne `AccessTime` reste juste puisqu'elle est lue avant la lecture, et docia conserve de son côté la première
+date d'accès observée. Sur des volumes NTFS où la mise à jour des dates d'accès est désactivée
+(`NtfsDisableLastAccessUpdate`), l'option est sans effet.
 
 ## Limites connues
 
 - `--ownerfile` en SMB cross-platform (Linux ou identifiants explicites) rend `<NOT_SUPPORTED>`.
-- `--preserve-access-time` sur SMB cross-platform est implémenté via SMBLibrary mais n'est pas couvert par la CI
-  (pas de serveur SMB) ; en local il est testé sous Linux et Windows.
+- Le mode SMB cross-platform (Linux ou identifiants explicites) n'est pas validé pour l'audit ; il n'est pas
+  couvert par la CI (pas de serveur SMB), seulement vérifié à la main sur un Samba de test. `--preserve-access-time`
+  y est implémenté via SMBLibrary. En local il est testé sous Linux et Windows.
 - Le hash et la signature portent sur les 64 premiers Ko : deux fichiers de même en-tête et de même taille
   forment une famille de doublons dans docia sans être forcément identiques.
 - Elasticsearch n'est pas testé par la CI.
