@@ -44,7 +44,7 @@ jobs:
           set -e
           bin=packages/${{ matrix.rid }}/SMBeagle
           [ -f "$bin.exe" ] && bin="$bin.exe"
-          "$bin" --local-path tests/fixtures --sizefile --fasthash --file-signature -c fumee.csv -q
+          "$bin" --local-path "$GITHUB_WORKSPACE/tests/fixtures" --sizefile --fasthash --file-signature -c fumee.csv -q
           head -1 fumee.csv
           test "$(wc -l < fumee.csv)" -gt 1
       - name: Déposer l'artefact ${{ matrix.artefact }}

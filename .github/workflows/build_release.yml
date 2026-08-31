@@ -47,7 +47,7 @@ jobs:
           bin=packages/${{ matrix.rid }}/SMBeagle
           [ -f "$bin.exe" ] && bin="$bin.exe"
           "$bin" --version
-          "$bin" --local-path tests/fixtures --sizefile --fasthash --file-signature -c fumee.csv -q
+          "$bin" --local-path "$GITHUB_WORKSPACE/tests/fixtures" --sizefile --fasthash --file-signature -c fumee.csv -q
           test "$(wc -l < fumee.csv)" -eq 8
       - name: Archive zip
         shell: bash
