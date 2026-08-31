@@ -23,6 +23,8 @@ public class DrivingTests
         Assert.Equal(2, Repo.Run("--local-path", Repo.Fixtures, "-c", Path.Combine(Repo.TempDir(), "x.csv"), "-u", "seul").ExitCode);
         Assert.Equal(2, Repo.Run("--local-path", Repo.Fixtures, "-c", Path.Combine(Repo.TempDir(), "x.csv"), "-a", "11").ExitCode);
         Assert.Equal(2, Repo.Run("--local-path", Repo.Fixtures, "-c", Path.Combine(Repo.TempDir(), "x.csv"), "-g", "--file-pattern", "[invalide").ExitCode);
+        string tmp = Repo.TempDir();
+        Assert.Equal(2, Repo.Run("--local-path", Path.Combine(tmp, "inexistant"), "-c", Path.Combine(tmp, "a.csv"), "-q").ExitCode);
         Assert.Equal(0, Repo.Run("--help").ExitCode);
         Assert.Equal(0, Repo.Run("--version").ExitCode);
     }
@@ -30,8 +32,8 @@ public class DrivingTests
     [Fact]
     public void Code_3_aucune_cible_ou_rien_trouve()
     {
+        // Un chemin inexistant vaut 2 (arguments) et non 3 : voir Code_2_arguments_invalides.
         string tmp = Repo.TempDir();
-        Assert.Equal(3, Repo.Run("--local-path", Path.Combine(tmp, "inexistant"), "-c", Path.Combine(tmp, "a.csv"), "-q").ExitCode);
         string vide = Path.Combine(tmp, "vide");
         Directory.CreateDirectory(vide);
         Assert.Equal(3, Repo.Run("--local-path", vide, "-c", Path.Combine(tmp, "b.csv"), "-q").ExitCode);

@@ -33,14 +33,20 @@ static class Repo
 
     public sealed record RunResult(int ExitCode, string Stdout, string Stderr);
 
-    public static RunResult Run(params string[] args)
+    public static RunResult Run(params string[] args) => RunIn(Root, args);
+
+    /// <summary>
+    /// Lance SMBeagle depuis un répertoire courant choisi : indispensable pour prouver
+    /// qu'un fragment de chemin relatif n'est PAS résolu contre le répertoire courant.
+    /// </summary>
+    public static RunResult RunIn(string workingDirectory, params string[] args)
     {
         var psi = new ProcessStartInfo(Executable)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
-            WorkingDirectory = Root,
+            WorkingDirectory = workingDirectory,
         };
         foreach (var a in args) psi.ArgumentList.Add(a);
         using var p = Process.Start(psi) ?? throw new InvalidOperationException("impossible de lancer " + Executable);

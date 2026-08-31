@@ -58,11 +58,16 @@ et dates sont lus via les API Win32, sans identifiants SMB.
 ### Appel « pour docia » (scan local, toutes les métadonnées)
 
 ```cmd
-SMBeagle.exe --local-path D:\partage --sizefile --access-time --fileattributes --ownerfile --fasthash --file-signature --preserve-access-time --progress-json --manifest scan.json -c scan.csv
+SMBeagle.exe --local-path "D:\partage" --sizefile --access-time --fileattributes --ownerfile --fasthash --file-signature --preserve-access-time --progress-json --manifest scan.json -c scan.csv
 ```
 
 docia lit les lignes JSON sur stdout, le CSV et le manifeste à la fin, et se fie au code de retour.
 Le même appel fonctionne sous Linux (`./SMBeagle --local-path /srv/partage ...`), sans identifiants.
+
+> **Chemins contenant une espace : guillemets obligatoires.** `--local-path D:\mes fichiers` sans guillemets
+> arrive en deux arguments et SMBeagle refuse alors de scanner (code 2). Écrire `--local-path "D:\mes fichiers"`,
+> et **ne pas terminer un chemin guillemeté par un antislash** : `"D:\dossier\"` ne ferme pas la citation
+> (règle MSVCRT) — écrire `"D:\dossier"`.
 
 ### Scan réseau SMB (fonctionnalité amont, non validée pour l'audit)
 
@@ -87,9 +92,25 @@ règle le délai de sonde TCP 445 : `1010 - 100 × a` ms par hôte (commit amont
 ```bash
 SMBeagle --local-path /home/data -c scan.csv
 SMBeagle --local-path /var/log /opt/data --sizefile --fasthash -c scan.csv
+SMBeagle --local-path "/srv/mes fichiers" -c "/srv/rapports/scan du jour.csv"
 ```
 
 `--local-path` est exclusif des options réseau (elles sont ignorées avec un avertissement).
+
+Chaque chemin doit être **absolu** et exister, sinon SMBeagle s'arrête en code 2 **avant tout scan** :
+
+- un chemin relatif (`../data`, `fichiers`, `C:foo`) est refusé au lieu d'être résolu contre le répertoire
+  courant. C'est ce qui faisait scanner le mauvais dossier en silence quand Windows coupait
+  `--local-path D:\mes fichiers` en deux arguments : le fragment `fichiers` existe souvent dans le répertoire
+  courant (`Documents`, `Downloads`, `Bureau`...) et passait alors pour une cible valide ;
+- un chemin inexistant ou injoignable (lecteur mappé déconnecté, partage absent) est refusé, avec le motif ;
+- une valeur vide (`--local-path ""`) est refusée avec un message explicite.
+
+En revanche, **un chemin qui existe mais dont l'accès est refusé n'est pas une erreur d'arguments** :
+il est écarté avec un avertissement (`WARNING: --local-path access denied, directory skipped`) et le scan
+continue sur les autres chemins, comme le fait déjà l'énumération pour un sous-dossier fermé. Si plus aucun
+chemin n'est exploitable, le scan se termine normalement en code 3. C'est le cas courant d'un partage
+partiellement fermé par ACL : l'audit doit continuer, pas échouer.
 
 ## Codes de retour
 
@@ -97,11 +118,11 @@ SMBeagle --local-path /var/log /opt/data --sizefile --fasthash -c scan.csv
 |------|---------------|
 | 0 | Scan terminé, au moins un fichier écrit |
 | 1 | Erreur d'exécution : exception, fichier CSV impossible à créer, interruption CTRL-C |
-| 2 | Arguments invalides : option inconnue, aucune sortie (`-c` et/ou `-e`), identifiants incomplets (ou absents hors Windows en mode réseau), `-l` avec identifiants |
-| 3 | Aucune cible ou rien trouvé : aucun chemin local valide, aucun hôte / partage accessible, zéro fichier |
+| 2 | Arguments invalides : option inconnue, argument surnuméraire (chemin non guillemeté), chemin `--local-path` relatif, vide, inexistant ou injoignable, `-c` vide, aucune sortie (`-c` et/ou `-e`), identifiants incomplets (ou absents hors Windows en mode réseau), `-l` avec identifiants, `-a` hors 1..10, motif `--file-pattern` invalide |
+| 3 | Rien trouvé : aucun chemin local exploitable (tous les `--local-path` en accès refusé), aucun hôte / partage accessible, zéro fichier |
 
-`--help` et `--version` rendent 0. Avec le code 3, le CSV (en-tête seul), le manifeste et l'événement `done`
-sont quand même produits.
+`--help` et `--version` rendent 0. Avec le code 3, le CSV (vide, ou réduit à son en-tête), le manifeste et
+l'événement `done` sont quand même produits : un appelant comme docia peut relire le CSV et poursuivre.
 
 ## Progression JSON (`--progress-json`)
 

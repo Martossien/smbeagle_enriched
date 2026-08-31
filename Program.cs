@@ -56,6 +56,21 @@ namespace SMBeagle
             }
         }
 
+        /// <summary>
+        /// Conseil commun aux arguments mal découpés : sous Windows, un chemin non
+        /// guillemeté contenant une espace arrive en plusieurs argv (cmd.exe / MSVCRT).
+        /// </summary>
+        const string QuotingHint =
+            "HINT: a path containing spaces must be quoted, e.g. --local-path \"D:\\my files\"\n" +
+            "HINT: do not end a quoted path with a backslash: \"D:\\folder\\\" does not close the quote, write \"D:\\folder\" instead";
+
+        /// <summary>Complément affiché quand un --local-path n'est pas pleinement qualifié.</summary>
+        const string RelativeHint =
+            "HINT: a relative path is resolved against the current directory, so it could silently scan the wrong folder";
+
+        static string Quoted(IEnumerable<string> values)
+            => string.Join(", ", values.Select(v => $"'{v}'"));
+
         static int Fail(int code, string message)
         {
             OutputHelper.WriteLine(message);
@@ -84,21 +99,121 @@ namespace SMBeagle
             return manifest.Files > 0 ? ExitCodes.Ok : ExitCodes.NothingFound;
         }
 
-        static int Run(Options opts)
+        /// <summary>Arguments validés : ce que <see cref="Run"/> utilise une fois toutes les gardes passées.</summary>
+        sealed class ValidatedArguments
         {
-            ScanManifest manifest = new();
-            if (opts.CsvFile != null)
-                manifest.Csv = System.IO.Path.GetFullPath(opts.CsvFile);
+            /// <summary>--local-path retenus, absolus et lisibles (les refusés en sont retirés).</summary>
+            public List<string> LocalPaths { get; } = new();
+            /// <summary>Motifs de récupération (-g) effectifs : défaut amont ou --file-pattern validés.</summary>
+            public List<string> FilePatterns { get; set; } = new();
+            /// <summary>Vrai hors Windows, ou avec des identifiants passés en ligne de commande.</summary>
+            public bool CrossPlatform { get; set; }
+            /// <summary>Vrai dès qu'un --local-path a été fourni, même si aucun n'est exploitable.</summary>
+            public bool LocalScan { get; set; }
+        }
 
-            if (!opts.Quiet)
-                OutputHelper.ConsoleWriteLogo();
-            else
-                OutputHelper.WriteLine("SMBeagle by PunkSecurity [punksecurity.co.uk]");
+        /// <summary>État d'un --local-path constaté avant tout scan.</summary>
+        enum LocalPathState { Ok, Empty, NotAbsolute, NotFound, AccessDenied }
 
-            bool localScan = opts.LocalPaths != null && opts.LocalPaths.Any();
+        /// <summary>
+        /// Classe un --local-path sans jamais le résoudre contre le répertoire courant.
+        /// Directory.Exists rend false aussi bien pour un dossier absent que pour un dossier
+        /// existant mais inaccessible : on énumère réellement pour distinguer les deux, sinon
+        /// un partage fermé par ACL serait rapporté comme « introuvable ».
+        /// </summary>
+        static LocalPathState ClassifyLocalPath(string path, out string detail)
+        {
+            detail = "";
+            if (string.IsNullOrWhiteSpace(path))
+                return LocalPathState.Empty;
+            try
+            {
+                // Un chemin relatif ('fichiers', '..\data', 'C:foo') serait résolu contre le
+                // répertoire courant : c'est exactement ce qui fait scanner le mauvais dossier
+                // quand un chemin non guillemeté est coupé en plusieurs argv par Windows.
+                if (!System.IO.Path.IsPathFullyQualified(path))
+                    return LocalPathState.NotAbsolute;
+                _ = System.IO.Directory.EnumerateFileSystemEntries(path).FirstOrDefault();
+                return LocalPathState.Ok;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return LocalPathState.AccessDenied;
+            }
+            catch (System.IO.DirectoryNotFoundException)
+            {
+                return LocalPathState.NotFound;
+            }
+            catch (Exception ex)
+            {
+                // Lecteur mappé déconnecté, partage injoignable, nom invalide : introuvable, motif à l'appui.
+                detail = ex.Message;
+                return LocalPathState.NotFound;
+            }
+        }
+
+        /// <summary>
+        /// Toutes les gardes d'arguments, avant le moindre effet de bord (manifeste, CSV, scan).
+        /// Rend null si le scan peut démarrer, sinon le code de retour à propager.
+        /// Un --local-path refusé n'est pas une erreur d'arguments : il est écarté avec un
+        /// avertissement, comme le fait déjà FileFinder.GetLocalPathDirectories, et le scan
+        /// continue sur les autres chemins. S'il n'en reste aucun, la fin de scan normale rend 3.
+        /// </summary>
+        static int? ValidateArguments(Options opts, out ValidatedArguments validated)
+        {
+            validated = new ValidatedArguments
+            {
+                LocalScan = opts.LocalPaths != null && opts.LocalPaths.Any(),
+            };
+
+            // Un argument surnuméraire signale presque toujours un chemin coupé par
+            // l'absence de guillemets : mieux vaut échouer que de le jeter en silence.
+            if (opts.ExtraArgs != null && opts.ExtraArgs.Any())
+                return Fail(ExitCodes.ArgumentError,
+                    $"ERROR: unexpected extra argument(s): {Quoted(opts.ExtraArgs)}\n{QuotingHint}");
+
+            // Chaque --local-path doit être absolu ET exister AVANT le scan : sinon un chemin
+            // coupé dont un fragment existe ferait scanner le mauvais dossier en code 0.
+            if (validated.LocalScan)
+            {
+                List<string> problems = new(), denied = new();
+                bool relative = false;
+                foreach (string path in opts.LocalPaths)
+                {
+                    switch (ClassifyLocalPath(path, out string detail))
+                    {
+                        case LocalPathState.Ok:
+                            validated.LocalPaths.Add(System.IO.Path.GetFullPath(path));
+                            break;
+                        case LocalPathState.Empty:
+                            problems.Add("ERROR: --local-path needs a directory, an empty value was given");
+                            break;
+                        case LocalPathState.NotAbsolute:
+                            relative = true;
+                            problems.Add($"ERROR: --local-path is not an absolute path: '{path}'");
+                            break;
+                        case LocalPathState.AccessDenied:
+                            denied.Add(path);
+                            break;
+                        default:
+                            problems.Add($"ERROR: --local-path directory not found: '{path}'"
+                                + (detail.Length == 0 ? "" : $" ({detail})"));
+                            break;
+                    }
+                }
+                if (problems.Count > 0)
+                {
+                    if (relative)
+                        problems.Add(RelativeHint);
+                    problems.Add(QuotingHint);
+                    return Fail(ExitCodes.ArgumentError, string.Join("\n", problems));
+                }
+                foreach (string path in denied)
+                    OutputHelper.WriteLine($"WARNING: --local-path access denied, directory skipped: '{path}'");
+            }
 
             // Un scan --local-path ne parle pas SMB : pas d'identifiants requis, même hors Windows.
-            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && !localScan)
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && !validated.LocalScan)
             {
                 if (opts.Username == null || opts.Password == null)
                     return Fail(ExitCodes.ArgumentError, "ERROR: Username and Password required on none Windows platforms");
@@ -107,10 +222,9 @@ namespace SMBeagle
             if (opts.Username == null ^ opts.Password == null)
                 return Fail(ExitCodes.ArgumentError, "ERROR: We need a username and password, not just one");
 
-            bool crossPlatform = false;
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || opts.Username != null)
             {
-                crossPlatform = true;
+                validated.CrossPlatform = true;
                 // The library we use hangs when scanning ourselves
                 if (opts.ScanLocalShares)
                     return Fail(ExitCodes.ArgumentError, "ERROR: We cannot scan local shares when running on Linux or with commandline credentials");
@@ -119,8 +233,54 @@ namespace SMBeagle
             if (opts.CsvFile == null && opts.ElasticsearchHost == null)
                 return Fail(ExitCodes.ArgumentError, "ERROR: an output is required (-c csv file and/or -e elasticsearch host)");
 
+            // Un -c dégénéré doit être rejeté ici : plus loin, Path.GetFullPath lèverait en code 1.
+            if (opts.CsvFile != null && string.IsNullOrWhiteSpace(opts.CsvFile))
+                return Fail(ExitCodes.ArgumentError, $"ERROR: -c/--csv-file needs a file name, an empty value was given\n{QuotingHint}");
+
             if (opts.Aggression < 1 || opts.Aggression > 10)
                 return Fail(ExitCodes.ArgumentError, $"ERROR: Aggression should be between 1 and 10, not '{opts.Aggression}'");
+
+            // Motifs de récupération (-g) : valeur par défaut amont, ou ceux fournis, validés avant tout scan
+            validated.FilePatterns = new List<string> { ".*(password|config|credentials|creds).*", ".*(ps1|bat|vbs|sh|cmd)$" };
+            if (opts.GrabFiles && opts.FilePatterns.Any())
+            {
+                validated.FilePatterns = opts.FilePatterns.ToList();
+                foreach (string pattern in validated.FilePatterns)
+                {
+                    try
+                    {
+                        _ = Regex.IsMatch("", pattern);
+                    }
+                    catch (ArgumentException)
+                    {
+                        return Fail(ExitCodes.ArgumentError, $"ERROR: Provided regex pattern '{pattern}' is invalid");
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        static int Run(Options opts)
+        {
+            if (!opts.Quiet)
+                OutputHelper.ConsoleWriteLogo();
+            else
+                OutputHelper.WriteLine("SMBeagle by PunkSecurity [punksecurity.co.uk]");
+
+            // Toutes les gardes d'arguments d'abord : rien ne doit être créé ni résolu avant.
+            int? argumentError = ValidateArguments(opts, out ValidatedArguments args);
+            if (argumentError.HasValue)
+                return argumentError.Value;
+
+            bool localScan = args.LocalScan;
+            bool crossPlatform = args.CrossPlatform;
+            List<string> filePatterns = args.FilePatterns;
+
+            ScanManifest manifest = new();
+            if (opts.CsvFile != null)
+                manifest.Csv = System.IO.Path.GetFullPath(opts.CsvFile);
+
             Host.PORT_MAX_WAIT_MS = 1010 - (100 * opts.Aggression);
 
             String username = "";
@@ -135,27 +295,11 @@ namespace SMBeagle
             if (opts.CsvFile != null)
                 OutputHelper.EnableCSVLogging(opts.CsvFile, username);
 
-            // Motifs de récupération (-g) : valeur par défaut amont, ou ceux fournis, validés avant tout scan
-            List<string> filePatterns = new List<string> { ".*(password|config|credentials|creds).*", ".*(ps1|bat|vbs|sh|cmd)$" };
             if (opts.GrabFiles)
             {
                 OutputHelper.WriteLine($"We will grab files and store them in {opts.OutputDirectory} directory");
                 if (opts.FilePatterns.Any())
-                {
-                    filePatterns = opts.FilePatterns.ToList();
-                    foreach (string pattern in filePatterns)
-                    {
-                        try
-                        {
-                            _ = Regex.IsMatch("", pattern);
-                        }
-                        catch (ArgumentException)
-                        {
-                            return Fail(ExitCodes.ArgumentError, $"ERROR: Provided regex pattern '{pattern}' is invalid");
-                        }
-                    }
                     OutputHelper.WriteLine($"Using the provided regexes", 1);
-                }
             }
             else if (!opts.Quiet)
             {
@@ -170,7 +314,11 @@ namespace SMBeagle
                 if (opts.Networks.Any() || opts.Hosts.Any() || opts.ScanLocalShares)
                     OutputHelper.WriteLine("WARNING: --local-path is mutually exclusive with network options. Network options ignored.", 1);
 
-                FileFinder ffLocal = new(BuildScanOptions(opts, new List<Share>(), filePatterns, crossPlatform));
+                // Tous les chemins refusés : fin de scan normale (CSV, manifeste, « done ») en code 3.
+                if (args.LocalPaths.Count == 0)
+                    return NothingFound(opts, manifest, "ERROR: No valid local path to scan");
+
+                FileFinder ffLocal = new(BuildScanOptions(opts, new List<Share>(), filePatterns, crossPlatform, args.LocalPaths));
                 manifest.Targets.AddRange(ffLocal.Directories.Where(d => d.Parent == null).Select(d => d.Path));
                 manifest.Files = ffLocal.FileCount;
                 if (manifest.Targets.Count == 0)
@@ -414,7 +562,7 @@ namespace SMBeagle
             ProgressReporter.Current?.Stage(ProgressReporter.STAGE_FILES);
 
             // Find files on all the shares
-            FileFinder ff = new(BuildScanOptions(opts, shares, filePatterns, crossPlatform));
+            FileFinder ff = new(BuildScanOptions(opts, shares, filePatterns, crossPlatform, new List<string>()));
             manifest.Files = ff.FileCount;
 
             return Finish(opts, manifest);
@@ -422,12 +570,13 @@ namespace SMBeagle
         }
 
         /// <summary>Options effectives de l'énumération, identiques en mode local et réseau (dont -q).</summary>
-        static ScanOptions BuildScanOptions(Options opts, List<Share> shares, List<string> filePatterns, bool crossPlatform)
+        /// <param name="localPaths">Chemins locaux déjà validés (absolus et lisibles), vide en mode réseau.</param>
+        static ScanOptions BuildScanOptions(Options opts, List<Share> shares, List<string> filePatterns, bool crossPlatform, List<string> localPaths)
         {
             return new ScanOptions
             {
                 Shares = shares,
-                LocalPaths = opts.LocalPaths?.ToList() ?? new List<string>(),
+                LocalPaths = localPaths,
                 OutputDirectory = opts.OutputDirectory,
                 FetchFiles = opts.GrabFiles,
                 FilePatterns = filePatterns,
@@ -573,6 +722,14 @@ namespace SMBeagle
 
             [Option("manifest", Required = false, HelpText = "Write a JSON manifest of the scan (options, targets, counts, columns) to this path")]
             public string ManifestPath { get; set; }
+
+            /// <summary>
+            /// Fourre-tout : tout argument positionnel restant (typiquement la fin d'un
+            /// chemin non guillemeté contenant une espace) est capturé ici puis refusé,
+            /// au lieu d'être jeté en silence par l'analyseur.
+            /// </summary>
+            [Value(0, MetaName = "extra", Hidden = true)]
+            public IEnumerable<string> ExtraArgs { get; set; }
 
             [Usage(ApplicationAlias = "SMBeagle")]
             public static IEnumerable<Example> Examples
