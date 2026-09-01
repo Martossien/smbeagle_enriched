@@ -227,11 +227,16 @@ namespace SMBeagle.Output
         /// Contrat CSV : seules les chaînes sont entre guillemets, un guillemet
         /// interne est doublé (RFC 4180, ce que décode le parseur docia). Les
         /// autres types (DateTime, bool, long, enum) sont rendus nus, comme avant.
+        /// Une valeur absente donne un champ **vide** — sans ce cas, Serilog écrirait
+        /// le texte « null », et docia lirait une taille illisible au lieu d'une
+        /// taille non collectée.
         /// </summary>
         static void WriteField(LogEventPropertyValue value, TextWriter output)
         {
             switch (value)
             {
+                case ScalarValue { Value: null }:
+                    break;
                 case ScalarValue { Value: string text }:
                     output.Write('"');
                     output.Write(text.Replace("\"", "\"\""));

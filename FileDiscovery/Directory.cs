@@ -111,7 +111,9 @@ namespace SMBeagle.FileDiscovery
             DateTime lastWriteTime = file.LastWriteTime;
             DateTime accessTime = opts.IncludeAccessTime ? file.LastAccessTime : default;
             DateTime? restoreAccessTimeUtc = opts.PreserveAccessTime && opts.ReadsContent ? file.LastAccessTimeUtc : null;
-            long size = opts.IncludeFileSize ? file.Length : 0;
+            // `null` et non `0` quand la taille n'est pas collectée : un CSV sans `--sizefile`
+            // annonçait sinon un partage entier à 0 octet, que docia excluait « trop petit ».
+            long? size = opts.IncludeFileSize ? file.Length : null;
             string attributes = opts.IncludeFileAttributes ? file.Attributes.ToString() : "";
             ContentProbe.Result probe = ContentProbe.ProbeLocal(file.FullName, opts.IncludeFastHash, opts.IncludeFileSignature, opts.Verbose, restoreAccessTimeUtc);
             return new File(
@@ -209,7 +211,7 @@ namespace SMBeagle.FileDiscovery
                                     extension: extension,
                                     creationTime: d.CreationTime,
                                     lastWriteTime: d.LastWriteTime,
-                                    fileSize: opts.IncludeFileSize ? (long)d.EndOfFile : 0,
+                                    fileSize: opts.IncludeFileSize ? (long)d.EndOfFile : null,
                                     accessTime: accessTime,
                                     fileAttributes: opts.IncludeFileAttributes ? d.FileAttributes.ToString() : "",
                                     owner: owner,
@@ -256,7 +258,7 @@ namespace SMBeagle.FileDiscovery
                         owner = LocalHelper.GetFileOwner(file.FullName, opts.Verbose);
                     File built = BuildLocalFile(file, opts, owner);
                     if (opts.Verbose)
-                        OutputHelper.WriteLine($"[LOCAL-FILE] Processing: {file.Name} (Size: {built.FileSize}, Owner: {owner})", 3);
+                        OutputHelper.WriteLine($"[LOCAL-FILE] Processing: {file.Name} (Size: {(built.FileSize?.ToString() ?? "non collectée")}, Owner: {owner})", 3);
                     Files.Add(built);
                 }
             }

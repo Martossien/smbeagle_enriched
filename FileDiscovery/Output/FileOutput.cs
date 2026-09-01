@@ -31,7 +31,7 @@ namespace SMBeagle.FileDiscovery.Output
         public bool Deletable { get; set; }
         public Enums.DirectoryTypeEnum DirectoryType { get; set; }
         public string Base { get; set; }
-        public long FileSize { get; set; }
+        public long? FileSize { get; set; }
         public DateTime AccessTime { get; set; }
         public string FileAttributes { get; set; }
         public string Owner { get; set; }

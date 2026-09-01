@@ -11,7 +11,10 @@ namespace SMBeagle.FileDiscovery
         public bool Readable { get; set; }
         public bool Writeable { get; set; }
         public bool Deletable { get; set; }
-        public long FileSize { get; set; }
+        /// <summary>Taille en octets, ou <c>null</c> si elle n'a pas été collectée (sans <c>--sizefile</c>).
+        /// La distinction est vitale : rendue « 0 », une taille non collectée fait exclure
+        /// tout le partage comme « fichiers trop petits », sans un mot.</summary>
+        public long? FileSize { get; set; }
         public DateTime AccessTime { get; set; }
         public string FileAttributes { get; set; }
         public string Owner { get; set; }
@@ -20,7 +23,7 @@ namespace SMBeagle.FileDiscovery
         public DateTime CreationTime { get; set; }
         public DateTime LastWriteTime { get; set; }
 
-        public File(string name, string fullName, string extension, DateTime creationTime, DateTime lastWriteTime, Directory parentDirectory, long fileSize = 0, DateTime accessTime = default, string fileAttributes = "", string owner = "", string fastHash = "", string fileSignature = "")
+        public File(string name, string fullName, string extension, DateTime creationTime, DateTime lastWriteTime, Directory parentDirectory, long? fileSize = null, DateTime accessTime = default, string fileAttributes = "", string owner = "", string fastHash = "", string fileSignature = "")
         {
             Name = name;
             Extension = extension;

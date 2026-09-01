@@ -53,6 +53,31 @@ public class LocalScanTests
         }
     }
 
+    /// <summary>
+    /// Sans --sizefile, la colonne FileSize est VIDE, jamais « 0 ».
+    ///
+    /// Elle valait « 0 », indiscernable d'un fichier réellement vide : docia lisait
+    /// un partage entier à 0 octet et l'excluait « fichier trop petit », sans un mot.
+    /// Le champ vide déclenche au contraire son compteur `size_defaulted`.
+    /// </summary>
+    [Fact]
+    public void Sans_sizefile_la_taille_est_vide_et_non_zero()
+    {
+        string tmp = Repo.TempDir();
+        string sans = Path.Combine(tmp, "sans.csv");
+        string avec = Path.Combine(tmp, "avec.csv");
+        var r1 = Repo.Run("--local-path", Repo.Fixtures, "-c", sans, "-q");
+        var r2 = Repo.Run("--local-path", Repo.Fixtures, "-c", avec, "-q", "--sizefile");
+        Assert.True(r1.ExitCode == 0 && r2.ExitCode == 0, $"{r1.ExitCode}/{r2.ExitCode}\n{r1.Stderr}\n{r2.Stderr}");
+
+        Assert.All(Csv.ReadRows(sans), r => Assert.Equal("", r["FileSize"]));
+
+        // Avec l'option, « 0 » redevient un fait : le fichier est vraiment vide.
+        var byName = Csv.ReadRows(avec).ToDictionary(r => r["Name"]);
+        Assert.Equal("0", byName["vide.txt"]["FileSize"]);
+        Assert.Equal("33", byName["logo.png"]["FileSize"]);
+    }
+
     [Fact]
     public void Scan_local_correspond_au_CSV_d_or_sur_les_colonnes_stables()
     {
