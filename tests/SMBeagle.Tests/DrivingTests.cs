@@ -103,8 +103,9 @@ public class DrivingTests
         Assert.Equal(0, run.ExitCode);
         using var doc = JsonDocument.Parse(File.ReadAllText(manifest));
         var root = doc.RootElement;
-        Assert.Equal(new[] { "version", "started_at", "finished_at", "options", "targets", "counts", "csv", "columns" },
+        Assert.Equal(new[] { "version", "started_at", "finished_at", "options", "targets", "skipped", "counts", "csv", "columns" },
             root.EnumerateObject().Select(p => p.Name).ToArray());
+        Assert.Empty(root.GetProperty("skipped").EnumerateArray());
         Assert.Matches(@"^\d+\.\d+\.\d+$", root.GetProperty("version").GetString());
         Assert.True(DateTimeOffset.Parse(root.GetProperty("started_at").GetString()!) <= DateTimeOffset.Parse(root.GetProperty("finished_at").GetString()!));
         var options = root.GetProperty("options");

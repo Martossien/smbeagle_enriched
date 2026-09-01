@@ -171,29 +171,59 @@ public class ArgumentSplittingTests
 
     /// <summary>
     /// Plusieurs --local-path dont un seul est refusé : le scan continue sur les autres,
-    /// comme le fait déjà FileFinder.GetLocalPathDirectories pour un dossier inaccessible.
+    /// mais il ne sort PAS en 0 et le manifeste nomme ce qui manque.
+    ///
+    /// Ce test attendait le code 0 : c'est exactement le défaut relevé par l'audit du
+    /// 01/09. Un partage entier sortait de l'audit sur une ligne d'avertissement noyée
+    /// dans la sortie, et rien en aval — ni le CSV, ni la base, ni le rapport remis à
+    /// la direction — ne disait qu'il manquait. Un outil qui sert à décider de
+    /// suppressions doit dire « je n'ai pas tout vu ».
     /// </summary>
     [Fact]
-    public void Un_chemin_refuse_parmi_d_autres_n_interrompt_pas_le_scan()
+    public void Un_chemin_refuse_parmi_d_autres_scanne_les_autres_mais_sort_en_4()
     {
         string tmp = Repo.TempDir();
         string ferme = DossierAvecFichier(tmp, "ferme", "secret.txt");
         string ouvert = DossierAvecFichier(tmp, "ouvert", "visible.txt");
         string csv = Path.Combine(tmp, "scan.csv");
+        string manifeste = Path.Combine(tmp, "scan.json");
         if (!RendreIllisible(ferme))
             return;
         try
         {
-            var run = Repo.Run("--local-path", ferme, ouvert, "-c", csv, "-q");
+            var run = Repo.Run("--local-path", ferme, ouvert, "-c", csv, "-q", "--manifest", manifeste);
 
-            Assert.True(run.ExitCode == 0, $"code {run.ExitCode}\n{run.Stdout}\n{run.Stderr}");
+            Assert.True(run.ExitCode == 4, $"code {run.ExitCode}\n{run.Stdout}\n{run.Stderr}");
             Assert.Contains("access denied", run.Stdout);
+            // Le CSV reste bon et exploitable : c'est le périmètre qui est amputé.
             Assert.Equal("visible.txt", Assert.Single(Csv.ReadRows(csv))["Name"]);
+
+            using var doc = JsonDocument.Parse(File.ReadAllText(manifeste));
+            var skipped = doc.RootElement.GetProperty("skipped").EnumerateArray().Select(e => e.GetString()).ToList();
+            var targets = doc.RootElement.GetProperty("targets").EnumerateArray().Select(e => e.GetString()).ToList();
+            Assert.Equal(new[] { ferme }, skipped);
+            Assert.Equal(new[] { ouvert }, targets);
         }
         finally
         {
             RendreLisible(ferme);
         }
+    }
+
+    /// <summary>Périmètre intact : « skipped » est vide et le code reste 0.</summary>
+    [Fact]
+    public void Sans_chemin_refuse_le_manifeste_ne_signale_rien()
+    {
+        string tmp = Repo.TempDir();
+        string ouvert = DossierAvecFichier(tmp, "ouvert", "visible.txt");
+        string csv = Path.Combine(tmp, "scan.csv");
+        string manifeste = Path.Combine(tmp, "scan.json");
+
+        var run = Repo.Run("--local-path", ouvert, "-c", csv, "-q", "--manifest", manifeste);
+
+        Assert.True(run.ExitCode == 0, $"code {run.ExitCode}\n{run.Stdout}\n{run.Stderr}");
+        using var doc = JsonDocument.Parse(File.ReadAllText(manifeste));
+        Assert.Empty(doc.RootElement.GetProperty("skipped").EnumerateArray());
     }
 
     [Fact]

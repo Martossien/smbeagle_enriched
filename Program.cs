@@ -96,7 +96,11 @@ namespace SMBeagle
             if (opts.ManifestPath != null)
                 manifest.Write(opts.ManifestPath, opts);
             ProgressReporter.Current?.Done(manifest.Files, manifest.Csv);
-            return manifest.Files > 0 ? ExitCodes.Ok : ExitCodes.NothingFound;
+            if (manifest.Files == 0)
+                return ExitCodes.NothingFound;
+            // Le périmètre amputé prime sur le succès : des fichiers ont bien été écrits,
+            // mais l'appelant ne doit pas lire « 0 » et croire avoir tout vu.
+            return manifest.Skipped.Count > 0 ? ExitCodes.PartialScan : ExitCodes.Ok;
         }
 
         /// <summary>Arguments validés : ce que <see cref="Run"/> utilise une fois toutes les gardes passées.</summary>
@@ -104,6 +108,11 @@ namespace SMBeagle
         {
             /// <summary>--local-path retenus, absolus et lisibles (les refusés en sont retirés).</summary>
             public List<string> LocalPaths { get; } = new();
+            /// <summary>--local-path demandés mais **écartés** (accès refusé) : le périmètre
+            /// scanné est plus petit que celui demandé. Reporté dans le manifeste
+            /// (`skipped`) et dans le code de retour, faute de quoi la seule trace serait
+            /// une ligne d'avertissement noyée dans la sortie du scanner.</summary>
+            public List<string> SkippedPaths { get; } = new();
             /// <summary>Motifs de récupération (-g) effectifs : défaut amont ou --file-pattern validés.</summary>
             public List<string> FilePatterns { get; set; } = new();
             /// <summary>Vrai hors Windows, ou avec des identifiants passés en ligne de commande.</summary>
@@ -210,6 +219,7 @@ namespace SMBeagle
                 }
                 foreach (string path in denied)
                     OutputHelper.WriteLine($"WARNING: --local-path access denied, directory skipped: '{path}'");
+                validated.SkippedPaths.AddRange(denied);
             }
 
             // Un scan --local-path ne parle pas SMB : pas d'identifiants requis, même hors Windows.
@@ -278,6 +288,7 @@ namespace SMBeagle
             List<string> filePatterns = args.FilePatterns;
 
             ScanManifest manifest = new();
+            manifest.Skipped.AddRange(args.SkippedPaths);
             if (opts.CsvFile != null)
                 manifest.Csv = System.IO.Path.GetFullPath(opts.CsvFile);
 

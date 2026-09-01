@@ -24,6 +24,15 @@ namespace SMBeagle.Output
 
         public DateTimeOffset StartedAt { get; } = DateTimeOffset.Now;
         public List<string> Targets { get; } = new();
+
+        /// <summary>
+        /// Cibles demandées mais **non scannées** (accès refusé, montage cassé).
+        /// Vide dans le cas normal. Non vide, le scan sort en
+        /// <see cref="SMBeagle.ExitCodes.PartialScan"/> : le CSV est bon, le périmètre
+        /// est incomplet, et l'aval doit pouvoir le dire à l'utilisateur au lieu de
+        /// présenter l'audit comme exhaustif.
+        /// </summary>
+        public List<string> Skipped { get; } = new();
         public long Hosts { get; set; }
         public long Shares { get; set; }
         public long Files { get; set; }
@@ -73,6 +82,7 @@ namespace SMBeagle.Output
                 ["finished_at"] = DateTimeOffset.Now.ToString("o"),
                 ["options"] = DescribeOptions(options),
                 ["targets"] = Targets,
+                ["skipped"] = Skipped,
                 ["counts"] = new Dictionary<string, long> { ["hosts"] = Hosts, ["shares"] = Shares, ["files"] = Files },
                 ["csv"] = Csv,
                 ["columns"] = FileDiscovery.Output.FileOutput.Columns,

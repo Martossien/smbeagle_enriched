@@ -112,6 +112,19 @@ continue sur les autres chemins, comme le fait déjà l'énumération pour un so
 chemin n'est exploitable, le scan se termine normalement en code 3. C'est le cas courant d'un partage
 partiellement fermé par ACL : l'audit doit continuer, pas échouer.
 
+Il doit en revanche **le dire**. Un scan dont une cible a été écartée sort en **code 4**, et le manifeste
+en donne la liste dans `skipped` :
+
+```json
+"targets": ["D:\\partage\\Compta"],
+"skipped": ["D:\\partage\\Direction"],
+```
+
+Ce code n'existait pas : un partage entier pouvait sortir de l'audit sur une ligne d'avertissement noyée
+dans la sortie, le scan rendant `0` comme si tout avait été vu. Rien en aval — CSV, base, rapport remis à
+la direction — ne pouvait dire qu'il manquait quelque chose. Un outil qui sert à décider de suppressions
+doit distinguer « je n'ai rien trouvé là » de « je n'ai pas pu regarder ».
+
 ## Codes de retour
 
 | Code | Signification |
@@ -120,9 +133,12 @@ partiellement fermé par ACL : l'audit doit continuer, pas échouer.
 | 1 | Erreur d'exécution : exception, fichier CSV impossible à créer, interruption CTRL-C |
 | 2 | Arguments invalides : option inconnue, argument surnuméraire (chemin non guillemeté), chemin `--local-path` relatif, vide, inexistant ou injoignable, `-c` vide, aucune sortie (`-c` et/ou `-e`), identifiants incomplets (ou absents hors Windows en mode réseau), `-l` avec identifiants, `-a` hors 1..10, motif `--file-pattern` invalide |
 | 3 | Rien trouvé : aucun chemin local exploitable (tous les `--local-path` en accès refusé), aucun hôte / partage accessible, zéro fichier |
+| 4 | Scan terminé et CSV écrit, mais **une cible demandée n'a pas été scannée** (accès refusé) : les fichiers écrits sont bons, le périmètre est incomplet. Détail dans `skipped` du manifeste |
 
 `--help` et `--version` rendent 0. Avec le code 3, le CSV (vide, ou réduit à son en-tête), le manifeste et
 l'événement `done` sont quand même produits : un appelant comme docia peut relire le CSV et poursuivre.
+Le code 4 n'est **pas** une erreur : le CSV s'importe normalement. C'est un fait à relayer à l'utilisateur,
+pas un scan à refaire — sauf s'il tenait à ce partage-là.
 
 ## Progression JSON (`--progress-json`)
 
