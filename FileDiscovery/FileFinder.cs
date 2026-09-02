@@ -198,6 +198,13 @@ namespace SMBeagle.FileDiscovery
         void EmitFiles(Directory dir, bool crossPlatform, List<Task> tasks)
         {
             ScanOptions opts = _opts;
+            if (opts.EnumerateAcls && _localScan)
+            {
+                // Sous Windows, les droits d'un fichier s'éprouvent en l'ouvrant (lecture,
+                // écriture) : deux allers-retours par fichier, à mener de front.
+                var parallel = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, opts.FileWorkers) };
+                Parallel.ForEach(dir.Files, parallel, FetchFilePermissionLocal);
+            }
             foreach (File file in dir.Files)
             {
                 string fileKey = $"{dir.Share.uncPath}{file.FullName}".ToLower();
@@ -208,13 +215,8 @@ namespace SMBeagle.FileDiscovery
                 }
                 if (!addedToSet) // déjà écrit (même fichier vu par deux racines)
                     continue;
-                if (opts.EnumerateAcls)
-                {
-                    if (_localScan)
-                        FetchFilePermissionLocal(file);
-                    else
-                        FetchFilePermission(file, crossPlatform, opts.GetPermissionsForSingleFileInDir);
-                }
+                if (opts.EnumerateAcls && !_localScan)
+                    FetchFilePermission(file, crossPlatform, opts.GetPermissionsForSingleFileInDir);
                 OutputHelper.AddPayload(new Output.FileOutput(file), Enums.OutputtersEnum.File);
                 ProgressReporter.Current?.Files(FilesSentForOutput.Count);
                 if (opts.FetchFiles && opts.FilePatterns.Any(pattern => Regex.IsMatch(file.Name, pattern, RegexOptions.IgnoreCase)))

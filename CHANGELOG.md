@@ -6,6 +6,21 @@ Toutes les modifications notables de SMBeagle_enriched sont documentées ici. Le
 contrat lu par docia (CSV, manifeste, codes de retour) s'étend, un **correctif** sinon.
 Les comptes rendus de sessions antérieurs à ce fichier sont dans `Docs/archive/`.
 
+## [4.4.0] — 2026-09-02
+
+### Modifié
+
+- **Examen des fichiers en parallèle au sein d'un répertoire** (`--file-workers`, défaut 8,
+  1 = comportement d'avant) : propriétaire, droits, empreinte et signature coûtent chacun un
+  à quatre allers-retours vers le serveur de fichiers ; ils sont menés de front, l'ordre du
+  CSV reste celui de l'énumération. Un fichier qui disparaît ou se refuse en cours d'examen
+  est compté (`counts.files_unreadable` dans le manifeste, `-v` pour le détail) et sauté au
+  lieu de faire tomber tout le répertoire.
+- **Propriétaire Linux mis en cache** (uid/gid → nom) : la résolution était refaite pour
+  chaque fichier (0,85 ms, 17 s sur 20 000 fichiers pour trois comptes distincts).
+- **Propriétaire Windows en un seul appel** `GetFileSecurity` dans le cas courant (tampon
+  fixe, second appel seulement si le descripteur est plus grand) au lieu de deux par fichier.
+
 ## [4.3.0] — 2026-09-02
 
 ### Corrigé

@@ -94,6 +94,7 @@ namespace SMBeagle
             OutputHelper.CloseAndFlush();
             OutputHelper.WriteLine(" -- AUDIT COMPLETE --");
             manifest.UnreadableDirectoryCount = FileDiscovery.Directory.UnreadableDirectoryCount;
+            manifest.UnreadableFileCount = FileDiscovery.Directory.UnreadableFileCount;
             manifest.UnreadableDirectories.AddRange(FileDiscovery.Directory.UnreadableDirectories);
             manifest.ReparsePointsSkipped = FileDiscovery.Directory.ReparsePointsSkipped;
             if (opts.ManifestPath != null)
@@ -252,6 +253,8 @@ namespace SMBeagle
 
             if (opts.Aggression < 1 || opts.Aggression > 10)
                 return Fail(ExitCodes.ArgumentError, $"ERROR: Aggression should be between 1 and 10, not '{opts.Aggression}'");
+            if (opts.FileWorkers < 1 || opts.FileWorkers > 64)
+                return Fail(ExitCodes.ArgumentError, $"ERROR: --file-workers should be between 1 and 64, not '{opts.FileWorkers}'");
 
             // Motifs de récupération (-g) : valeur par défaut amont, ou ceux fournis, validés avant tout scan
             validated.FilePatterns = new List<string> { ".*(password|config|credentials|creds).*", ".*(ps1|bat|vbs|sh|cmd)$" };
@@ -606,6 +609,7 @@ namespace SMBeagle
                 IncludeFastHash = opts.FastHash,
                 IncludeFileSignature = opts.FileSignature,
                 PreserveAccessTime = opts.PreserveAccessTime,
+                FileWorkers = opts.FileWorkers,
             };
         }
 
@@ -730,6 +734,9 @@ namespace SMBeagle
 
             [Option("preserve-access-time", Required = false, HelpText = "Restore each file's last access time after reading it (--fasthash / --file-signature)")]
             public bool PreserveAccessTime { get; set; }
+
+            [Option("file-workers", Required = false, Default = 8, HelpText = "Files examined in parallel within a directory (owner, ACL, hash, signature): 1 = one at a time, up to 64")]
+            public int FileWorkers { get; set; }
 
             [Option("progress-json", Required = false, HelpText = "Emit one JSON progress line on stdout every ~2s and per stage (human output goes to stderr)")]
             public bool ProgressJson { get; set; }

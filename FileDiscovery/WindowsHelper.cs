@@ -317,6 +317,7 @@ namespace SMBeagle.FileDiscovery
             SidTypeLabel
         }
 
+        const uint OWNER_SD_INITIAL_BYTES = 256;
         static readonly Dictionary<string, string> _sidCache = new();
         static readonly object _sidCacheLock = new object();
         private const int MAX_SID_CACHE_SIZE = 10000;
@@ -324,13 +325,10 @@ namespace SMBeagle.FileDiscovery
         public static string GetFileOwner(string filePath)
         {
             string ownerResult = string.Empty;
-            uint needed = 0;
-            if (!GetFileSecurity(filePath, SECURITY_INFORMATION.OWNER_SECURITY_INFORMATION, IntPtr.Zero, 0, out needed))
-            {
-                int err = Marshal.GetLastWin32Error();
-                if (err != 122) // ERROR_INSUFFICIENT_BUFFER
-                    return $"<ERROR_{err}>";
-            }
+            // Un descripteur « propriétaire seul » tient dans quelques dizaines d'octets :
+            // on tente d'abord avec un tampon fixe — un seul aller-retour vers le serveur
+            // de fichiers au lieu de deux (taille, puis contenu) pour chaque fichier.
+            uint needed = OWNER_SD_INITIAL_BYTES;
             IntPtr pSD = Marshal.AllocHGlobal((int)needed);
             try
             {
@@ -338,7 +336,15 @@ namespace SMBeagle.FileDiscovery
                 {
                     int err = Marshal.GetLastWin32Error();
                     if (err == 5) return "<ACCESS_DENIED>";
-                    return $"<ERROR_{err}>";
+                    if (err != 122) return $"<ERROR_{err}>"; // ERROR_INSUFFICIENT_BUFFER : on réessaie
+                    Marshal.FreeHGlobal(pSD);
+                    pSD = Marshal.AllocHGlobal((int)needed);
+                    if (!GetFileSecurity(filePath, SECURITY_INFORMATION.OWNER_SECURITY_INFORMATION, pSD, needed, out needed))
+                    {
+                        err = Marshal.GetLastWin32Error();
+                        if (err == 5) return "<ACCESS_DENIED>";
+                        return $"<ERROR_{err}>";
+                    }
                 }
                 IntPtr pOwner;
                 bool def;

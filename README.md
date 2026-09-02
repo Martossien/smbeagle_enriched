@@ -23,6 +23,7 @@ Toute l'énumération SMB, le contrôle des permissions et la sortie CSV / Elast
 | `--fasthash` | xxHash64 des 64 premiers Ko | oui | oui |
 | `--file-signature` | Type détecté par nombres magiques et structure de l'en-tête (64 premiers Ko) | oui | oui |
 | `--preserve-access-time` | Remet la date d'accès après lecture du contenu | oui | oui (voir limites) |
+| `--file-workers <n>` | Fichiers examinés en parallèle dans un répertoire (défaut 8, 1 = un à la fois) — propriétaire, droits, empreinte et signature coûtent chacun des allers-retours vers le serveur de fichiers | oui | oui |
 | `--progress-json` | Progression JSON sur stdout | oui | oui |
 | `--manifest <fichier.json>` | Manifeste de scan en fin d'exécution | oui | oui |
 
@@ -168,7 +169,7 @@ Avec cette option, **stdout ne contient que des lignes JSON** (une par ligne, UT
 
 ```json
 {
-  "version": "4.3.0",
+  "version": "4.4.0",
   "started_at": "2026-08-30T19:49:03.1328939+02:00",
   "finished_at": "2026-08-30T19:49:03.2996582+02:00",
   "options": {
@@ -189,7 +190,7 @@ Avec cette option, **stdout ne contient que des lignes JSON** (une par ligne, UT
     "...": "toutes les autres options, clé = nom long, valeur effective (défauts compris)"
   },
   "targets": ["D:\\partage"],
-  "counts": { "hosts": 0, "shares": 0, "files": 48213, "dirs_unreadable": 2, "reparse_points_skipped": 1 },
+  "counts": { "hosts": 0, "shares": 0, "files": 48213, "dirs_unreadable": 2, "files_unreadable": 0, "reparse_points_skipped": 1 },
   "unreadable_directories": ["D:\\partage\\Direction\\Confidentiel", "D:\\partage\\RH\\Paie"],
   "csv": "C:\\scans\\scan.csv",
   "columns": ["Name", "Host", "Extension", "Username", "Hostname", "UNCDirectory", "CreationTime", "LastWriteTime", "Readable", "Writeable", "Deletable", "DirectoryType", "Base", "FileSize", "AccessTime", "FileAttributes", "Owner", "FastHash", "FileSignature"]
@@ -198,6 +199,7 @@ Avec cette option, **stdout ne contient que des lignes JSON** (une par ligne, UT
 
 - `options` : chaque option de la ligne de commande avec sa valeur effective ; le mot de passe est masqué (`"***"`).
 - `targets` : chemins locaux validés (absolus) ou, en réseau, réseaux et hôtes retenus après filtrage.
+- `counts.files_unreadable` : fichiers sautés parce qu'illisibles en cours d'examen (disparus ou refusés entre l'énumération et la lecture) ; `-v` en donne le détail.
 - `counts.hosts` / `counts.shares` : hôtes avec partages et partages scannés (0 en local) ; `counts.files` : fichiers écrits.
 - `counts.dirs_unreadable` / `unreadable_directories` : sous-répertoires du périmètre que l'énumération n'a
   pas pu lire (accès refusé, chemin trop long) — leurs fichiers **manquent** à l'inventaire. La liste est

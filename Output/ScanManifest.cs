@@ -38,6 +38,8 @@ namespace SMBeagle.Output
         /// (<see cref="FileDiscovery.Directory.MAX_UNREADABLE_LISTED"/>), le compte est exact.</summary>
         public List<string> UnreadableDirectories { get; } = new();
         public long UnreadableDirectoryCount { get; set; }
+        /// <summary>Fichiers sautés parce qu'illisibles en cours d'examen (disparus, refusés).</summary>
+        public long UnreadableFileCount { get; set; }
         /// <summary>Jonctions et liens de répertoire ignorés (le contenu réel est scanné par son chemin).</summary>
         public long ReparsePointsSkipped { get; set; }
         public long Hosts { get; set; }
@@ -96,6 +98,7 @@ namespace SMBeagle.Output
                     ["shares"] = Shares,
                     ["files"] = Files,
                     ["dirs_unreadable"] = UnreadableDirectoryCount,
+                    ["files_unreadable"] = UnreadableFileCount,
                     ["reparse_points_skipped"] = ReparsePointsSkipped,
                 },
                 ["unreadable_directories"] = UnreadableDirectories,

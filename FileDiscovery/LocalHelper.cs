@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using Mono.Unix;
@@ -50,6 +51,27 @@ namespace SMBeagle.FileDiscovery
             }
         }
 
+        // Résolution uid/gid → nom mise en cache : `getpwuid`/`getgrgid` interrogent la
+        // base des comptes (NSS, donc parfois un annuaire) à CHAQUE appel — mesuré
+        // 0,85 ms par fichier, 17 s sur 20 000 fichiers pour une poignée de comptes
+        // distincts. Verrou : ces appels ne sont pas réentrants.
+        static readonly Dictionary<long, string> _userNames = new();
+        static readonly Dictionary<long, string> _groupNames = new();
+        static readonly object _ownerLock = new();
+
+        static string CachedName(Dictionary<long, string> cache, long id, Func<long, string> resolve)
+        {
+            lock (_ownerLock)
+            {
+                if (cache.TryGetValue(id, out string name))
+                    return name;
+                try { name = resolve(id); }
+                catch (Exception) { name = id.ToString(); } // compte inconnu : l'identifiant brut
+                cache[id] = name;
+                return name;
+            }
+        }
+
         public static string GetFileOwner(string filePath, bool verbose = false)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -61,9 +83,9 @@ namespace SMBeagle.FileDiscovery
             try
             {
                 var fileInfo = new UnixFileInfo(filePath);
-                var ownerInfo = fileInfo.OwnerUser;
-                var groupInfo = fileInfo.OwnerGroup;
-                string result = $"{ownerInfo.UserName}:{groupInfo.GroupName}";
+                string user = CachedName(_userNames, fileInfo.OwnerUserId, uid => new UnixUserInfo(uid).UserName);
+                string group = CachedName(_groupNames, fileInfo.OwnerGroupId, gid => new UnixGroupInfo(gid).GroupName);
+                string result = $"{user}:{group}";
                 if (verbose)
                     OutputHelper.WriteLine($"[LOCAL-OWNER] Linux owner: {result} for {Path.GetFileName(filePath)}", 3);
                 return result;

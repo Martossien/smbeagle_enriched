@@ -61,6 +61,37 @@ public class LocalScanTests
     /// Le champ vide déclenche au contraire son compteur `size_defaulted`.
     /// </summary>
     [Fact]
+    public void Le_parallelisme_par_repertoire_rend_le_meme_CSV_dans_le_meme_ordre()
+    {
+        string tmp = Repo.TempDir();
+        string seul = Path.Combine(tmp, "seul.csv");
+        string huit = Path.Combine(tmp, "huit.csv");
+        var argsSeul = new List<string> { "--local-path", Repo.Fixtures, "-c", seul, "-q", "--file-workers", "1" };
+        var argsHuit = new List<string> { "--local-path", Repo.Fixtures, "-c", huit, "-q", "--file-workers", "8" };
+        argsSeul.AddRange(MetadataOptions);
+        argsHuit.AddRange(MetadataOptions);
+        var r1 = Repo.Run(argsSeul.ToArray());
+        var r2 = Repo.Run(argsHuit.ToArray());
+        Assert.True(r1.ExitCode == 0 && r2.ExitCode == 0, $"{r1.ExitCode}/{r2.ExitCode}\n{r1.Stderr}\n{r2.Stderr}");
+
+        var lignesSeul = Csv.ReadRows(seul);
+        var lignesHuit = Csv.ReadRows(huit);
+        Assert.Equal(lignesSeul.Count, lignesHuit.Count);
+        // Toutes les colonnes sauf la date d'accès, que la lecture du contenu peut toucher
+        // (sans --preserve-access-time) — et l'ordre des lignes est celui de l'énumération.
+        for (int i = 0; i < lignesSeul.Count; i++)
+            foreach (string colonne in lignesSeul[i].Keys.Where(c => c != "AccessTime"))
+                Assert.True(lignesSeul[i][colonne] == lignesHuit[i][colonne], $"ligne {i}, colonne {colonne} : '{lignesSeul[i][colonne]}' ≠ '{lignesHuit[i][colonne]}'");
+    }
+
+    [Fact]
+    public void Un_nombre_de_workers_hors_bornes_est_refuse()
+    {
+        var run = Repo.Run("--local-path", Repo.Fixtures, "-c", Path.Combine(Repo.TempDir(), "x.csv"), "-q", "--file-workers", "0");
+        Assert.Equal(2, run.ExitCode);
+    }
+
+    [Fact]
     public void Sans_sizefile_la_taille_est_vide_et_non_zero()
     {
         string tmp = Repo.TempDir();

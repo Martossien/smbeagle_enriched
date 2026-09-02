@@ -28,6 +28,13 @@ namespace SMBeagle.FileDiscovery
         public bool IncludeFileSignature { get; init; }
         /// <summary>Restaurer la date de dernier accès après lecture du contenu.</summary>
         public bool PreserveAccessTime { get; init; }
+        /// <summary>
+        /// Fichiers examinés en parallèle au sein d'un répertoire (propriétaire, droits,
+        /// empreinte, signature). Chaque examen coûte un à quatre allers-retours vers le
+        /// serveur de fichiers ; les enchaîner un par un laissait le réseau attendre.
+        /// 1 = un à la fois (comportement d'avant 4.4.0).
+        /// </summary>
+        public int FileWorkers { get; init; } = 8;
 
         public bool IsLocalScan => LocalPaths.Count > 0;
 
