@@ -33,6 +33,13 @@ namespace SMBeagle.Output
         /// présenter l'audit comme exhaustif.
         /// </summary>
         public List<string> Skipped { get; } = new();
+        /// <summary>Sous-répertoires du périmètre que l'énumération n'a pas pu lire (accès
+        /// refusé, chemin trop long) : leurs fichiers manquent à l'inventaire. Liste bornée
+        /// (<see cref="FileDiscovery.Directory.MAX_UNREADABLE_LISTED"/>), le compte est exact.</summary>
+        public List<string> UnreadableDirectories { get; } = new();
+        public long UnreadableDirectoryCount { get; set; }
+        /// <summary>Jonctions et liens de répertoire ignorés (le contenu réel est scanné par son chemin).</summary>
+        public long ReparsePointsSkipped { get; set; }
         public long Hosts { get; set; }
         public long Shares { get; set; }
         public long Files { get; set; }
@@ -83,7 +90,15 @@ namespace SMBeagle.Output
                 ["options"] = DescribeOptions(options),
                 ["targets"] = Targets,
                 ["skipped"] = Skipped,
-                ["counts"] = new Dictionary<string, long> { ["hosts"] = Hosts, ["shares"] = Shares, ["files"] = Files },
+                ["counts"] = new Dictionary<string, long>
+                {
+                    ["hosts"] = Hosts,
+                    ["shares"] = Shares,
+                    ["files"] = Files,
+                    ["dirs_unreadable"] = UnreadableDirectoryCount,
+                    ["reparse_points_skipped"] = ReparsePointsSkipped,
+                },
+                ["unreadable_directories"] = UnreadableDirectories,
                 ["csv"] = Csv,
                 ["columns"] = FileDiscovery.Output.FileOutput.Columns,
             };

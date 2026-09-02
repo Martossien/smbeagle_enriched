@@ -103,7 +103,7 @@ public class DrivingTests
         Assert.Equal(0, run.ExitCode);
         using var doc = JsonDocument.Parse(File.ReadAllText(manifest));
         var root = doc.RootElement;
-        Assert.Equal(new[] { "version", "started_at", "finished_at", "options", "targets", "skipped", "counts", "csv", "columns" },
+        Assert.Equal(new[] { "version", "started_at", "finished_at", "options", "targets", "skipped", "counts", "unreadable_directories", "csv", "columns" },
             root.EnumerateObject().Select(p => p.Name).ToArray());
         Assert.Empty(root.GetProperty("skipped").EnumerateArray());
         Assert.Matches(@"^\d+\.\d+\.\d+$", root.GetProperty("version").GetString());
@@ -118,6 +118,8 @@ public class DrivingTests
         Assert.Equal(new[] { Path.GetFullPath(Repo.Fixtures) }, root.GetProperty("targets").EnumerateArray().Select(t => t.GetString()));
         Assert.Equal(7, root.GetProperty("counts").GetProperty("files").GetInt64());
         Assert.Equal(0, root.GetProperty("counts").GetProperty("hosts").GetInt64());
+        Assert.Equal(0, root.GetProperty("counts").GetProperty("dirs_unreadable").GetInt64());
+        Assert.Empty(root.GetProperty("unreadable_directories").EnumerateArray());
         Assert.Equal(Path.GetFullPath(csv), root.GetProperty("csv").GetString());
         Assert.Equal(Csv.Header, root.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToArray());
         Assert.Equal(7, Csv.ReadRows(csv).Count);

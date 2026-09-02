@@ -1,4 +1,4 @@
-﻿using SMBeagle.FileDiscovery;
+using SMBeagle.FileDiscovery;
 using SMBeagle.HostDiscovery;
 using SMBeagle.NetworkDiscovery;
 using SMBeagle.Output;
@@ -93,6 +93,9 @@ namespace SMBeagle
             OutputHelper.WriteLine("7. Completing the writes to CSV or elasticsearch (or both)");
             OutputHelper.CloseAndFlush();
             OutputHelper.WriteLine(" -- AUDIT COMPLETE --");
+            manifest.UnreadableDirectoryCount = FileDiscovery.Directory.UnreadableDirectoryCount;
+            manifest.UnreadableDirectories.AddRange(FileDiscovery.Directory.UnreadableDirectories);
+            manifest.ReparsePointsSkipped = FileDiscovery.Directory.ReparsePointsSkipped;
             if (opts.ManifestPath != null)
                 manifest.Write(opts.ManifestPath, opts);
             ProgressReporter.Current?.Done(manifest.Files, manifest.Csv);
@@ -330,7 +333,7 @@ namespace SMBeagle
                     return NothingFound(opts, manifest, "ERROR: No valid local path to scan");
 
                 FileFinder ffLocal = new(BuildScanOptions(opts, new List<Share>(), filePatterns, crossPlatform, args.LocalPaths));
-                manifest.Targets.AddRange(ffLocal.Directories.Where(d => d.Parent == null).Select(d => d.Path));
+                manifest.Targets.AddRange(ffLocal.RootPaths);
                 manifest.Files = ffLocal.FileCount;
                 if (manifest.Targets.Count == 0)
                     return NothingFound(opts, manifest, "ERROR: No valid local path to scan");

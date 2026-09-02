@@ -1,4 +1,4 @@
-﻿using SMBeagle.HostDiscovery;
+using SMBeagle.HostDiscovery;
 using SMBeagle.Output;
 using SMBeagle.ShareDiscovery;
 using System;
@@ -20,6 +20,16 @@ namespace SMBeagle.FileDiscovery
         bool _localScan = false;
 
         List<Directory> _directories { get; set; } = new();
+
+        readonly List<string> _rootPaths = new();
+        /// <summary>
+        /// Cibles réellement scannées, telles que demandées. Lue AVANT
+        /// <see cref="SplitLargeDirectories"/> : celui-ci remplace une racine de plus de
+        /// 20 sous-répertoires par ses enfants, et « les répertoires sans parent »
+        /// devenaient une liste vide — le scan sortait en code 3 « aucun fichier » avec
+        /// 100 000 lignes écrites et un manifeste sans cible.
+        /// </summary>
+        public IReadOnlyList<string> RootPaths => _rootPaths;
         public List<Directory> Directories
         {
             get
@@ -103,6 +113,7 @@ namespace SMBeagle.FileDiscovery
                     _directories.Add(new Directory(path: "", share: share) { DirectoryType = Enums.DirectoryTypeEnum.SMB });
                 }
             }
+            _rootPaths.AddRange(_directories.Select(d => _localScan ? d.Path : d.UNCPath));
 
             if (!opts.Quiet)
                 OutputHelper.WriteLine($"6a. Enumerating all subdirectories for known paths");
@@ -156,44 +167,14 @@ namespace SMBeagle.FileDiscovery
                 abort = false;
                 if (!opts.Quiet)
                     OutputHelper.WriteLine($"\renumerating files in '{dir.UNCPath}' - CTRL-BREAK or CTRL-PAUSE to SKIP                                          ", 1, false);
-                dir.FindFilesRecursively(crossPlatform: crossPlatform, ref abort, extensionsToIgnore: extensionsToIgnore, opts: opts);
+                long before = FilesSentForOutput.Count;
+                // Les fichiers de chaque répertoire sont écrits dès leur énumération, puis
+                // oubliés : garder l'arbre entier en mémoire jusqu'à la fin coûtait ~170 Mo
+                // pour 100 000 fichiers, et autant de plus par tranche de 100 000.
+                dir.FindFilesRecursively(crossPlatform: crossPlatform, ref abort, extensionsToIgnore: extensionsToIgnore, opts: opts,
+                    onFilesFound: found => EmitFiles(found, crossPlatform, tasks));
                 if (opts.Verbose)
-                    OutputHelper.WriteLine($"\rFound {dir.ChildDirectories.Count} child directories and {dir.RecursiveFiles.Count} files in '{dir.UNCPath}'", 2);
-
-                var filesToProcess = new List<File>(dir.RecursiveFiles);
-                foreach (File file in filesToProcess)
-                {
-                    string fileKey = $"{dir.Share.uncPath}{file.FullName}".ToLower();
-                    bool addedToSet;
-                    lock (FilesSentForOutput)
-                    {
-                        addedToSet = FilesSentForOutput.Add(fileKey);
-                    }
-
-                    if (addedToSet) // returns True if not already present
-                    {
-                        if (opts.EnumerateAcls)
-                        {
-                            if (_localScan)
-                                FetchFilePermissionLocal(file);
-                            else
-                                FetchFilePermission(file, crossPlatform, opts.GetPermissionsForSingleFileInDir);
-                        }
-
-                        OutputHelper.AddPayload(new Output.FileOutput(file), Enums.OutputtersEnum.File);
-                        ProgressReporter.Current?.Files(FilesSentForOutput.Count);
-
-                        if (opts.FetchFiles && opts.FilePatterns.Any(pattern => Regex.IsMatch(file.Name, pattern, RegexOptions.IgnoreCase)))
-                        {
-                            if (_localScan)
-                                tasks.Add(Task.Run(() => FetchFileLocal(file, opts.OutputDirectory)));
-                            else
-                                tasks.Add(Task.Run(() => FetchFile(file, crossPlatform, opts.OutputDirectory)));
-                            if (crossPlatform)
-                                Task.WaitAll(tasks.ToArray());
-                        }
-                    }
-                }
+                    OutputHelper.WriteLine($"\rFound {dir.ChildDirectories.Count} child directories and {FilesSentForOutput.Count - before} files in '{dir.UNCPath}'", 2);
 
                 dir.Clear();
                 CacheACL.Clear(); // Clear Cached ACLs otherwise it grows and grows
@@ -202,12 +183,51 @@ namespace SMBeagle.FileDiscovery
             Console.CancelKeyPress -= handler;
             if (!opts.Quiet)
                 OutputHelper.WriteLine($"\r  file enumeration complete, {FilesSentForOutput.Count} files identified                ");
+            if (Directory.UnreadableDirectoryCount > 0)
+                OutputHelper.WriteError($"{Directory.UnreadableDirectoryCount} répertoire(s) non lu(s) (accès refusé ou chemin illisible) : leurs fichiers sont absents de l'inventaire — voir le manifeste");
+            if (Directory.ReparsePointsSkipped > 0 && !opts.Quiet)
+                OutputHelper.WriteLine($"  {Directory.ReparsePointsSkipped} jonction(s)/lien(s) de répertoire ignoré(s) (contenu scanné par son vrai chemin)", 1);
             if (opts.PreserveAccessTime && ContentProbe.AccessTimeRestoreFailures > 0)
                 OutputHelper.WriteError($"date d'accès non restaurée pour {ContentProbe.AccessTimeRestoreFailures} fichier(s) (droits insuffisants ; -v pour le détail)");
         }
 
         /// <summary>Nombre de fichiers envoyés en sortie (dédoublonnés).</summary>
         public int FileCount => FilesSentForOutput.Count;
+
+        /// <summary>Permissions, sortie, progression et récupération des fichiers d'UN répertoire.</summary>
+        void EmitFiles(Directory dir, bool crossPlatform, List<Task> tasks)
+        {
+            ScanOptions opts = _opts;
+            foreach (File file in dir.Files)
+            {
+                string fileKey = $"{dir.Share.uncPath}{file.FullName}".ToLower();
+                bool addedToSet;
+                lock (FilesSentForOutput)
+                {
+                    addedToSet = FilesSentForOutput.Add(fileKey);
+                }
+                if (!addedToSet) // déjà écrit (même fichier vu par deux racines)
+                    continue;
+                if (opts.EnumerateAcls)
+                {
+                    if (_localScan)
+                        FetchFilePermissionLocal(file);
+                    else
+                        FetchFilePermission(file, crossPlatform, opts.GetPermissionsForSingleFileInDir);
+                }
+                OutputHelper.AddPayload(new Output.FileOutput(file), Enums.OutputtersEnum.File);
+                ProgressReporter.Current?.Files(FilesSentForOutput.Count);
+                if (opts.FetchFiles && opts.FilePatterns.Any(pattern => Regex.IsMatch(file.Name, pattern, RegexOptions.IgnoreCase)))
+                {
+                    if (_localScan)
+                        tasks.Add(Task.Run(() => FetchFileLocal(file, opts.OutputDirectory)));
+                    else
+                        tasks.Add(Task.Run(() => FetchFile(file, crossPlatform, opts.OutputDirectory)));
+                    if (crossPlatform)
+                        Task.WaitAll(tasks.ToArray());
+                }
+            }
+        }
 
         private Enums.DirectoryTypeEnum DriveInfoTypeToDirectoryTypeEnum(DriveType type)
         {

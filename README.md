@@ -189,7 +189,8 @@ Avec cette option, **stdout ne contient que des lignes JSON** (une par ligne, UT
     "...": "toutes les autres options, clé = nom long, valeur effective (défauts compris)"
   },
   "targets": ["D:\\partage"],
-  "counts": { "hosts": 0, "shares": 0, "files": 48213 },
+  "counts": { "hosts": 0, "shares": 0, "files": 48213, "dirs_unreadable": 2, "reparse_points_skipped": 1 },
+  "unreadable_directories": ["D:\\partage\\Direction\\Confidentiel", "D:\\partage\\RH\\Paie"],
   "csv": "C:\\scans\\scan.csv",
   "columns": ["Name", "Host", "Extension", "Username", "Hostname", "UNCDirectory", "CreationTime", "LastWriteTime", "Readable", "Writeable", "Deletable", "DirectoryType", "Base", "FileSize", "AccessTime", "FileAttributes", "Owner", "FastHash", "FileSignature"]
 }
@@ -198,6 +199,12 @@ Avec cette option, **stdout ne contient que des lignes JSON** (une par ligne, UT
 - `options` : chaque option de la ligne de commande avec sa valeur effective ; le mot de passe est masqué (`"***"`).
 - `targets` : chemins locaux validés (absolus) ou, en réseau, réseaux et hôtes retenus après filtrage.
 - `counts.hosts` / `counts.shares` : hôtes avec partages et partages scannés (0 en local) ; `counts.files` : fichiers écrits.
+- `counts.dirs_unreadable` / `unreadable_directories` : sous-répertoires du périmètre que l'énumération n'a
+  pas pu lire (accès refusé, chemin trop long) — leurs fichiers **manquent** à l'inventaire. La liste est
+  bornée à 200 chemins, le compte est exact ; le même fait est résumé sur stderr en fin de scan. Ce n'est
+  pas une cible écartée (`skipped`, code 4) : le scan sort en 0, à l'aval d'en tenir compte.
+- `counts.reparse_points_skipped` : jonctions et liens de répertoire ignorés — un lien vers un ancêtre
+  faisait boucler l'énumération ; le contenu réel est scanné par son vrai chemin.
 
 ## Contrat CSV (19 colonnes)
 

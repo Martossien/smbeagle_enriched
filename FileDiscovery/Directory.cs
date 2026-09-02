@@ -1,10 +1,11 @@
-﻿using SMBeagle.ShareDiscovery;
+using SMBeagle.ShareDiscovery;
 using SMBeagle.Output;
 using SMBLibrary;
 using SMBLibrary.Client;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 
 namespace SMBeagle.FileDiscovery
 {
@@ -96,6 +97,46 @@ namespace SMBeagle.FileDiscovery
         }
 
         public List<File> Files { get; private set; } = new List<File>();
+
+        // ------------------------------------------------------------------
+        // Ce que l'énumération n'a pas pu lire. Un sous-dossier fermé par ACL ou
+        // une jonction vers son propre parent disparaissaient sans un mot hors -v :
+        // l'inventaire se croyait complet. Compté ici, écrit dans le manifeste
+        // (`counts.dirs_unreadable`, `unreadable_directories`) et résumé en fin de scan.
+        static long _unreadableDirectoryCount;
+        static long _reparsePointsSkipped;
+        static readonly object _unreadableLock = new();
+        static readonly List<string> _unreadableDirectories = new();
+        /// <summary>Chemins conservés dans le manifeste (au-delà, seul le compte reste).</summary>
+        public const int MAX_UNREADABLE_LISTED = 200;
+
+        /// <summary>Sous-répertoires dont l'énumération a échoué (accès refusé, chemin trop long…).</summary>
+        public static long UnreadableDirectoryCount => Interlocked.Read(ref _unreadableDirectoryCount);
+        /// <summary>Jonctions et liens symboliques de répertoire ignorés (une boucle ne se termine jamais).</summary>
+        public static long ReparsePointsSkipped => Interlocked.Read(ref _reparsePointsSkipped);
+        public static IReadOnlyList<string> UnreadableDirectories
+        {
+            get { lock (_unreadableLock) return new List<string>(_unreadableDirectories); }
+        }
+
+        static void RecordUnreadable(string path, Exception ex)
+        {
+            lock (_unreadableLock)
+            {
+                if (_unreadableDirectories.Contains(path))
+                    return; // déjà compté (fichiers ET sous-dossiers du même répertoire)
+                Interlocked.Increment(ref _unreadableDirectoryCount);
+                if (_unreadableDirectories.Count < MAX_UNREADABLE_LISTED)
+                    _unreadableDirectories.Add(path);
+            }
+            OutputHelper.WriteError($"répertoire non lu '{path}' : {ex.GetType().Name} {ex.Message}");
+        }
+
+        /// <summary>Vide la liste des fichiers déjà écrits en sortie (les sous-répertoires restent à parcourir).</summary>
+        public void ClearFiles()
+        {
+            Files.Clear();
+        }
         public List<Directory> ChildDirectories { get; private set; } = new List<Directory>();
         public Directory(string path, Share share)
         {
@@ -264,7 +305,7 @@ namespace SMBeagle.FileDiscovery
             }
             catch (Exception ex)
             {
-                OutputHelper.WriteError($"énumération des fichiers impossible dans '{UNCPath}' : {ex.Message}");
+                RecordUnreadable(UNCPath, ex);
             }
         }
         public void Clear()
@@ -294,6 +335,16 @@ namespace SMBeagle.FileDiscovery
                 DirectoryInfo[] subDirs = new DirectoryInfo(UNCPath).GetDirectories();
                 foreach (DirectoryInfo di in subDirs)
                 {
+                    // Jonction, lien symbolique, point de montage : suivi, un lien vers un
+                    // parent fait boucler l'énumération jusqu'au « chemin trop long ». Le
+                    // contenu réel est de toute façon scanné par son vrai chemin.
+                    if (di.Attributes.HasFlag(System.IO.FileAttributes.ReparsePoint))
+                    {
+                        Interlocked.Increment(ref _reparsePointsSkipped);
+                        if (verbose)
+                            OutputHelper.WriteLine($"[LOCAL-SCAN] Reparse point skipped: {di.FullName}", 3);
+                        continue;
+                    }
                     ChildDirectories.Add(new Directory(path: di.FullName, share: Share) { Parent = this });
                     if (verbose)
                         OutputHelper.WriteLine($"[LOCAL-SCAN] Found subdirectory: {di.FullName}", 3);
@@ -301,8 +352,7 @@ namespace SMBeagle.FileDiscovery
             }
             catch (Exception ex)
             {
-                if (verbose)
-                    OutputHelper.WriteLine($"[LOCAL-SCAN] Error enumerating directories in {UNCPath}: {ex.Message}", 2);
+                RecordUnreadable(UNCPath, ex);
             }
         }
         private void FindDirectoriesCrossPlatform()
@@ -376,7 +426,13 @@ namespace SMBeagle.FileDiscovery
             }
         }
 
-        public void FindFilesRecursively(bool crossPlatform, ref bool abort, List<string> extensionsToIgnore, ScanOptions opts)
+        /// <summary>
+        /// Énumère les fichiers de ce répertoire puis de ses enfants. Avec
+        /// <paramref name="onFilesFound"/>, les fichiers de chaque répertoire sont
+        /// remis à l'appelant **aussitôt trouvés** puis oubliés : la mémoire ne
+        /// dépend plus du nombre de fichiers du partage mais du plus gros répertoire.
+        /// </summary>
+        public void FindFilesRecursively(bool crossPlatform, ref bool abort, List<string> extensionsToIgnore, ScanOptions opts, Action<Directory> onFilesFound = null)
         {
             if (opts.Verbose)
             {
@@ -389,6 +445,11 @@ namespace SMBeagle.FileDiscovery
                 FindFilesCrossPlatform(extensionsToIgnore, opts);
             else
                 FindFilesWindows(extensionsToIgnore, opts);
+            if (onFilesFound != null)
+            {
+                onFilesFound(this);
+                ClearFiles();
+            }
             // Iterate only direct children here. Using RecursiveChildDirectories
             // caused repeated traversal of the same subdirectories at every level,
             // dramatically impacting performance when verbose access-time logging
@@ -397,7 +458,7 @@ namespace SMBeagle.FileDiscovery
             {
                 if (abort)
                     return;
-                dir.FindFilesRecursively(crossPlatform, ref abort, extensionsToIgnore, opts);
+                dir.FindFilesRecursively(crossPlatform, ref abort, extensionsToIgnore, opts, onFilesFound);
             }
         }
 
